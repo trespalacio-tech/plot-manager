@@ -130,16 +130,24 @@ export function FarmDetailPage(): JSX.Element {
                     {p.irrigation === 'RAINFED' ? 'Secano' : p.irrigation}
                     {p.plantingYear ? ` · plantado ${p.plantingYear}` : ''}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      if (!confirm(`¿Borrar la parcela «${p.name}»?`)) return;
-                      await deleteParcel(p.id);
-                    }}
-                  >
-                    Borrar
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to={`/parcelas/${farm.id}/${p.id}`}
+                      className="text-xs text-brand-700 hover:underline"
+                    >
+                      Ver detalle
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        if (!confirm(`¿Borrar la parcela «${p.name}»?`)) return;
+                        await deleteParcel(p.id);
+                      }}
+                    >
+                      Borrar
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </li>

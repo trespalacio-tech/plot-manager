@@ -11,6 +11,9 @@ import { SettingsPage } from '@/pages/Settings';
 const FarmDetailPage = lazy(() =>
   import('@/pages/FarmDetail').then((m) => ({ default: m.FarmDetailPage })),
 );
+const ParcelDetailPage = lazy(() =>
+  import('@/pages/ParcelDetail').then((m) => ({ default: m.ParcelDetailPage })),
+);
 
 function LazyRoute({ children }: { children: React.ReactNode }) {
   return (
@@ -40,6 +43,14 @@ export const router = createHashRouter([
         element: (
           <LazyRoute>
             <FarmDetailPage />
+          </LazyRoute>
+        ),
+      },
+      {
+        path: 'parcelas/:farmId/:parcelId',
+        element: (
+          <LazyRoute>
+            <ParcelDetailPage />
           </LazyRoute>
         ),
       },
