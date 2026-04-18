@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { AppShell } from '@/components/AppShell';
 import { TodayPage } from '@/pages/Today';
 import { SettingsPage } from '@/pages/Settings';
+import { getDb, resetDbForTests } from '@/lib/db';
+import { createFarm } from '@/lib/db/repos';
 
 function renderAt(initialPath: string) {
   const router = createMemoryRouter(
@@ -22,12 +24,39 @@ function renderAt(initialPath: string) {
   return render(<RouterProvider router={router} />);
 }
 
+beforeEach(() => {
+  resetDbForTests();
+});
+
+afterEach(async () => {
+  const db = getDb();
+  const name = db.name;
+  db.close();
+  await indexedDB.deleteDatabase(name);
+});
+
 describe('AppShell', () => {
-  it('muestra la pantalla Hoy con la pregunta del Coach', () => {
+  it('muestra el onboarding en Hoy cuando no hay fincas', async () => {
     renderAt('/hoy');
-    expect(
-      screen.getByRole('heading', { level: 1, name: /qué hago hoy/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /bienvenido a fincas/i }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('muestra la pregunta del Coach cuando ya hay una finca', async () => {
+    await createFarm({
+      name: 'Test',
+      municipality: 'Burgos',
+      province: 'Burgos',
+    });
+    renderAt('/hoy');
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /qué hago hoy/i }),
+      ).toBeInTheDocument();
+    });
   });
 
   it('expone todas las pestañas en la navegación', () => {
