@@ -32,12 +32,19 @@ import {
   OPERATION_TYPES,
 } from '@/lib/notebook/templates';
 
+interface FieldLogPrefill {
+  type?: OperationType;
+  title?: string;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   parcels: Parcel[];
   existing?: FieldLogEntry;
   defaultParcelId?: string;
+  prefill?: FieldLogPrefill;
+  onSaved?: (entry: FieldLogEntry) => void | Promise<void>;
 }
 
 function toDateInput(d: Date): string {
@@ -53,6 +60,8 @@ export function FieldLogDialog({
   parcels,
   existing,
   defaultParcelId,
+  prefill,
+  onSaved,
 }: Props): JSX.Element {
   const editing = Boolean(existing);
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
@@ -63,21 +72,24 @@ export function FieldLogDialog({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
 
-  const defaultValues: FieldLogFormValues = useMemo(
-    () => ({
+  const defaultValues: FieldLogFormValues = useMemo(() => {
+    const baseType: OperationType =
+      existing?.type ?? prefill?.type ?? ('MULCHING' as OperationType);
+    const baseTitle =
+      existing?.title ?? prefill?.title ?? OPERATION_TEMPLATES[baseType].defaultTitle;
+    return {
       date: existing?.date ?? new Date(),
       parcelIds:
         existing?.parcelIds ??
         (defaultParcelId ? [defaultParcelId] : []),
-      type: existing?.type ?? ('MULCHING' as OperationType),
-      title: existing?.title ?? OPERATION_TEMPLATES.MULCHING.defaultTitle,
+      type: baseType,
+      title: baseTitle,
       description: existing?.description ?? '',
       durationMinutes: existing?.durationMinutes,
       weatherConditions: existing?.weatherConditions ?? '',
       costEur: existing?.costEur,
-    }),
-    [existing, defaultParcelId],
-  );
+    };
+  }, [existing, defaultParcelId, prefill]);
 
   const {
     register,
@@ -190,11 +202,14 @@ export function FieldLogDialog({
       photoBlobs: photoBlobs.length ? photoBlobs : undefined,
       voiceNoteBlob: voiceBlob,
     };
+    let saved: FieldLogEntry;
     if (editing && existing) {
       await updateFieldLogEntry(existing.id, payload);
+      saved = { ...existing, ...payload } as FieldLogEntry;
     } else {
-      await createFieldLogEntry(payload);
+      saved = await createFieldLogEntry(payload);
     }
+    if (onSaved) await onSaved(saved);
     reset();
     onOpenChange(false);
   });
