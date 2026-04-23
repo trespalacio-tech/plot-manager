@@ -29,6 +29,7 @@ export interface TaskProposal {
   title: string;
   rationale: string;
   scientificBasis?: string;
+  guidanceKey?: string;
   priority: TaskPriority;
   scheduledFor?: Date;
   dueDate?: Date;

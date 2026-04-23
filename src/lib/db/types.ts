@@ -302,6 +302,7 @@ export interface Task extends WithId {
   title: string;
   rationale: string;
   scientificBasis?: string;
+  guidanceKey?: string;
   scheduledFor?: Date;
   dueDate?: Date;
   priority: TaskPriority;

@@ -6,7 +6,7 @@ import {
   listTasks,
   updateTask,
 } from '@/lib/db/repos';
-import type { Parcel } from '@/lib/db/types';
+import type { Parcel, TaskSource } from '@/lib/db/types';
 import { buildContext } from './context';
 import { ALL_RULES } from './catalog';
 import type { AlertProposal, Rule, TaskProposal } from './types';
@@ -18,23 +18,28 @@ export interface EvaluateResult {
   createdAlerts: number;
 }
 
+export function emptyResult(): EvaluateResult {
+  return { createdTasks: 0, updatedTasks: 0, skippedTasks: 0, createdAlerts: 0 };
+}
+
 export interface EvaluateOptions {
   now?: Date;
   parcels?: Parcel[];
   rules?: Rule[];
 }
 
-function refFor(ruleId: string, parcelId: string, subKey?: string): string {
-  return subKey ? `${ruleId}:${parcelId}:${subKey}` : `${ruleId}:${parcelId}`;
+function refFor(ns: string, parcelId: string, subKey?: string): string {
+  return subKey ? `${ns}:${parcelId}:${subKey}` : `${ns}:${parcelId}`;
 }
 
-async function applyTask(
-  rule: Rule,
+export async function applyTaskProposal(
+  ns: string,
+  source: TaskSource,
   parcel: Parcel,
   p: TaskProposal,
   result: EvaluateResult,
-) {
-  const sourceRef = refFor(rule.id, parcel.id, p.subKey);
+): Promise<void> {
+  const sourceRef = refFor(ns, parcel.id, p.subKey);
   const existing = await listTasks({ sourceRef });
   if (existing.length > 0) {
     const e = existing[0]!;
@@ -46,6 +51,7 @@ async function applyTask(
       title: p.title,
       rationale: p.rationale,
       scientificBasis: p.scientificBasis,
+      guidanceKey: p.guidanceKey,
       priority: p.priority,
       scheduledFor: p.scheduledFor,
       dueDate: p.dueDate,
@@ -56,12 +62,13 @@ async function applyTask(
   }
   await createTask({
     parcelId: parcel.id,
-    source: 'RULE_ENGINE',
+    source,
     sourceRef,
     type: p.operationType,
     title: p.title,
     rationale: p.rationale,
     scientificBasis: p.scientificBasis,
+    guidanceKey: p.guidanceKey,
     priority: p.priority,
     scheduledFor: p.scheduledFor,
     dueDate: p.dueDate,
@@ -69,13 +76,13 @@ async function applyTask(
   result.createdTasks += 1;
 }
 
-async function applyAlert(
-  rule: Rule,
+export async function applyAlertProposal(
+  ns: string,
   parcel: Parcel,
   p: AlertProposal,
   result: EvaluateResult,
-) {
-  const triggerSource = refFor(rule.id, parcel.id, p.subKey);
+): Promise<void> {
+  const triggerSource = refFor(ns, parcel.id, p.subKey);
   const existing = await listAlerts({
     triggerSource,
     includeAcknowledged: true,
@@ -99,21 +106,16 @@ export async function evaluateRules(
   const now = options.now ?? new Date();
   const parcels = options.parcels ?? (await listParcels());
   const rules = options.rules ?? ALL_RULES;
-  const result: EvaluateResult = {
-    createdTasks: 0,
-    updatedTasks: 0,
-    skippedTasks: 0,
-    createdAlerts: 0,
-  };
+  const result = emptyResult();
   for (const parcel of parcels) {
     const ctx = await buildContext(parcel, now);
     for (const rule of rules) {
       const proposals = rule.evaluate(ctx);
       for (const p of proposals) {
         if (p.kind === 'TASK') {
-          await applyTask(rule, parcel, p, result);
+          await applyTaskProposal(rule.id, 'RULE_ENGINE', parcel, p, result);
         } else {
-          await applyAlert(rule, parcel, p, result);
+          await applyAlertProposal(rule.id, parcel, p, result);
         }
       }
     }

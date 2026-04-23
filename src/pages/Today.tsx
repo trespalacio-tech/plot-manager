@@ -24,7 +24,14 @@ import type {
   TaskPriority,
 } from '@/lib/db/types';
 import { OPERATION_LABELS } from '@/lib/notebook/templates';
-import { evaluateRules } from '@/lib/rules';
+import { evaluateCoach } from '@/lib/playbooks';
+import { CoachWizardDialog } from '@/components/coach/CoachWizardDialog';
+import {
+  COACH_WIZARDS,
+  getWizard,
+  wizardKeyForType,
+  type CoachWizard,
+} from '@/lib/coach/wizards';
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   URGENT: 'Urgente',
@@ -65,6 +72,9 @@ export function TodayPage(): JSX.Element {
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [completingTask, setCompletingTask] = useState<Task | undefined>(undefined);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [activeWizard, setActiveWizard] = useState<CoachWizard | undefined>(undefined);
+  const [wizardTask, setWizardTask] = useState<Task | undefined>(undefined);
 
   const parcelMap = useMemo(() => {
     const m = new Map<string, Parcel>();
@@ -100,13 +110,30 @@ export function TodayPage(): JSX.Element {
   const onEvaluate = async () => {
     setEvaluating(true);
     try {
-      const r = await evaluateRules();
+      const r = await evaluateCoach();
       setLastResult(
         `Coach actualizado: ${r.createdTasks} nuevas, ${r.updatedTasks} revisadas, ${r.skippedTasks} ya hechas, ${r.createdAlerts} avisos.`,
       );
     } finally {
       setEvaluating(false);
     }
+  };
+
+  const wizardForTask = (t: Task): CoachWizard | undefined => {
+    if (t.guidanceKey) {
+      const w = getWizard(t.guidanceKey);
+      if (w) return w;
+    }
+    const fallback = wizardKeyForType(t.type);
+    return fallback ? COACH_WIZARDS[fallback] : undefined;
+  };
+
+  const onShowWizard = (t: Task) => {
+    const w = wizardForTask(t);
+    if (!w) return;
+    setActiveWizard(w);
+    setWizardTask(t);
+    setWizardOpen(true);
   };
 
   const onComplete = (t: Task) => {
@@ -185,6 +212,8 @@ export function TodayPage(): JSX.Element {
             key={t.id}
             task={t}
             parcel={t.parcelId ? parcelMap.get(t.parcelId) : undefined}
+            wizard={wizardForTask(t)}
+            onShowWizard={() => onShowWizard(t)}
             onComplete={() => onComplete(t)}
             onPostpone={() => onPostpone(t)}
             onDismiss={() => onDismiss(t)}
@@ -215,6 +244,29 @@ export function TodayPage(): JSX.Element {
             : undefined
         }
       />
+
+      {activeWizard && (
+        <CoachWizardDialog
+          open={wizardOpen}
+          onOpenChange={(open) => {
+            setWizardOpen(open);
+            if (!open) {
+              setActiveWizard(undefined);
+              setWizardTask(undefined);
+            }
+          }}
+          wizard={activeWizard}
+          onMarkDone={
+            wizardTask
+              ? () => {
+                  const t = wizardTask;
+                  setWizardTask(undefined);
+                  onComplete(t);
+                }
+              : undefined
+          }
+        />
+      )}
     </PageContainer>
   );
 }
@@ -222,6 +274,8 @@ export function TodayPage(): JSX.Element {
 function TaskCard({
   task,
   parcel,
+  wizard,
+  onShowWizard,
   onComplete,
   onPostpone,
   onDismiss,
@@ -229,6 +283,8 @@ function TaskCard({
 }: {
   task: Task;
   parcel?: Parcel;
+  wizard?: CoachWizard;
+  onShowWizard: () => void;
   onComplete: () => void;
   onPostpone: () => void;
   onDismiss: () => void;
@@ -293,6 +349,11 @@ function TaskCard({
                 Posponer
               </Button>
             </>
+          )}
+          {wizard && (
+            <Button variant="outline" size="sm" onClick={onShowWizard}>
+              Cómo hacerlo
+            </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             Descartar
