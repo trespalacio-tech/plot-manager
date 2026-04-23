@@ -32,6 +32,8 @@ import {
   wizardKeyForType,
   type CoachWizard,
 } from '@/lib/coach/wizards';
+import { DiagnoseWizardDialog } from '@/components/diagnose/DiagnoseWizardDialog';
+import type { DiagnoseHypothesis } from '@/lib/diagnose/types';
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = {
   URGENT: 'Urgente',
@@ -75,6 +77,10 @@ export function TodayPage(): JSX.Element {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [activeWizard, setActiveWizard] = useState<CoachWizard | undefined>(undefined);
   const [wizardTask, setWizardTask] = useState<Task | undefined>(undefined);
+  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+  const [diagnosePrefill, setDiagnosePrefill] = useState<
+    { title: string; description: string } | undefined
+  >(undefined);
 
   const parcelMap = useMemo(() => {
     const m = new Map<string, Parcel>();
@@ -168,9 +174,14 @@ export function TodayPage(): JSX.Element {
       subtitle="Tu Coach de campo. Tareas y avisos con base agronómica."
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <Button onClick={onEvaluate} disabled={evaluating || (parcels?.length ?? 0) === 0}>
-          {evaluating ? 'Evaluando…' : 'Actualizar coach'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onEvaluate} disabled={evaluating || (parcels?.length ?? 0) === 0}>
+            {evaluating ? 'Evaluando…' : 'Actualizar coach'}
+          </Button>
+          <Button variant="outline" onClick={() => setDiagnoseOpen(true)}>
+            Veo algo raro
+          </Button>
+        </div>
         {lastResult && <span className="text-xs text-slate-500">{lastResult}</span>}
       </div>
 
@@ -226,7 +237,10 @@ export function TodayPage(): JSX.Element {
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
-          if (!open) setCompletingTask(undefined);
+          if (!open) {
+            setCompletingTask(undefined);
+            setDiagnosePrefill(undefined);
+          }
         }}
         parcels={parcels ?? []}
         defaultParcelId={completingTask?.parcelId}
@@ -241,8 +255,26 @@ export function TodayPage(): JSX.Element {
                 type: completingTask.type,
                 title: completingTask.title,
               }
-            : undefined
+            : diagnosePrefill
+              ? {
+                  type: 'MONITORING',
+                  title: diagnosePrefill.title,
+                  description: diagnosePrefill.description,
+                }
+              : undefined
         }
+      />
+
+      <DiagnoseWizardDialog
+        open={diagnoseOpen}
+        onOpenChange={setDiagnoseOpen}
+        onAnnotate={(h: DiagnoseHypothesis) => {
+          setDiagnosePrefill({
+            title: `Observación · ${h.title}`,
+            description: buildDiagnoseDescription(h),
+          });
+          setDialogOpen(true);
+        }}
       />
 
       {activeWizard && (
@@ -392,4 +424,26 @@ function AlertCard({
       </CardContent>
     </Card>
   );
+}
+
+function buildDiagnoseDescription(h: DiagnoseHypothesis): string {
+  const parts: string[] = [];
+  parts.push(`Hipótesis (${h.confidence}): ${h.title}`);
+  parts.push('');
+  parts.push(h.description);
+  if (h.monitoring.length) {
+    parts.push('');
+    parts.push('Monitoreo recomendado:');
+    h.monitoring.forEach((m) => parts.push(`- ${m}`));
+  }
+  if (h.managementOptions.length) {
+    parts.push('');
+    parts.push('Manejo posible (lista blanca ecológica):');
+    h.managementOptions.forEach((m) => parts.push(`- ${m}`));
+  }
+  if (h.whenToConsultExpert) {
+    parts.push('');
+    parts.push(`Consulta técnica: ${h.whenToConsultExpert}`);
+  }
+  return parts.join('\n');
 }

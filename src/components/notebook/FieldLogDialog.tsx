@@ -35,6 +35,7 @@ import {
 interface FieldLogPrefill {
   type?: OperationType;
   title?: string;
+  description?: string;
 }
 
 interface Props {
@@ -84,7 +85,7 @@ export function FieldLogDialog({
         (defaultParcelId ? [defaultParcelId] : []),
       type: baseType,
       title: baseTitle,
-      description: existing?.description ?? '',
+      description: existing?.description ?? prefill?.description ?? '',
       durationMinutes: existing?.durationMinutes,
       weatherConditions: existing?.weatherConditions ?? '',
       costEur: existing?.costEur,

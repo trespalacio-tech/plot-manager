@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { PageContainer } from '@/components/PageContainer';
@@ -7,10 +8,14 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SoilPanel } from '@/components/soil/SoilPanel';
-import { getFarm, getParcel } from '@/lib/db/repos';
+import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
+import { DiagnoseWizardDialog } from '@/components/diagnose/DiagnoseWizardDialog';
+import { getFarm, getParcel, listParcels } from '@/lib/db/repos';
 import type { CropType, IrrigationType, ParcelStatus } from '@/lib/db/types';
+import type { DiagnoseHypothesis } from '@/lib/diagnose/types';
 
 const statusLabels: Record<ParcelStatus, string> = {
   DESIGN: 'Diseño',
@@ -41,6 +46,12 @@ export function ParcelDetailPage(): JSX.Element {
     () => (farmId ? getFarm(farmId) : Promise.resolve(undefined)),
     [farmId],
   );
+  const parcels = useLiveQuery(() => listParcels(), []);
+  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [logPrefill, setLogPrefill] = useState<
+    { title: string; description: string } | undefined
+  >(undefined);
 
   if (!parcelId || !farmId)
     return <PageContainer title="Parcela" subtitle="Parcela no encontrada." />;
@@ -54,10 +65,13 @@ export function ParcelDetailPage(): JSX.Element {
       title={parcel.name}
       subtitle={`${farm.name} · ${statusLabels[parcel.status]} · ${cropLabels[parcel.cropType]}`}
     >
-      <div className="mb-4">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <Link to={`/parcelas/${farmId}`} className="text-sm text-brand-700 hover:underline">
           ← Volver a {farm.name}
         </Link>
+        <Button variant="outline" size="sm" onClick={() => setDiagnoseOpen(true)}>
+          Veo algo raro
+        </Button>
       </div>
 
       <Tabs defaultValue="suelo">
@@ -106,8 +120,61 @@ export function ParcelDetailPage(): JSX.Element {
           <SoilPanel parcelId={parcel.id} cropType={parcel.cropType} />
         </TabsContent>
       </Tabs>
+
+      <DiagnoseWizardDialog
+        open={diagnoseOpen}
+        onOpenChange={setDiagnoseOpen}
+        onAnnotate={(h: DiagnoseHypothesis) => {
+          setLogPrefill({
+            title: `Observación · ${h.title}`,
+            description: buildDiagnoseDescription(h),
+          });
+          setLogOpen(true);
+        }}
+      />
+
+      <FieldLogDialog
+        open={logOpen}
+        onOpenChange={(open) => {
+          setLogOpen(open);
+          if (!open) setLogPrefill(undefined);
+        }}
+        parcels={parcels ?? []}
+        defaultParcelId={parcel.id}
+        prefill={
+          logPrefill
+            ? {
+                type: 'MONITORING',
+                title: logPrefill.title,
+                description: logPrefill.description,
+              }
+            : undefined
+        }
+      />
     </PageContainer>
   );
+}
+
+function buildDiagnoseDescription(h: DiagnoseHypothesis): string {
+  const parts: string[] = [];
+  parts.push(`Hipótesis (${h.confidence}): ${h.title}`);
+  parts.push('');
+  parts.push(h.description);
+  if (h.monitoring.length) {
+    parts.push('');
+    parts.push('Monitoreo recomendado:');
+    h.monitoring.forEach((m) => parts.push(`- ${m}`));
+  }
+  if (h.managementOptions.length) {
+    parts.push('');
+    parts.push('Manejo posible (lista blanca ecológica):');
+    h.managementOptions.forEach((m) => parts.push(`- ${m}`));
+  }
+  if (h.whenToConsultExpert) {
+    parts.push('');
+    parts.push(`Consulta técnica: ${h.whenToConsultExpert}`);
+  }
+  return parts.join('\n');
 }
 
 function Info({ label, value }: { label: string; value: string }) {

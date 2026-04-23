@@ -12,6 +12,7 @@ const tabs: Tab[] = [
   { to: '/parcelas', label: 'Parcelas', icon: '▦' },
   { to: '/calendario', label: 'Calendario', icon: '▤' },
   { to: '/aprender', label: 'Aprender', icon: '?' },
+  { to: '/catalogos', label: 'Catálogos', icon: '☰' },
   { to: '/ajustes', label: 'Ajustes', icon: '⚙' },
 ];
 

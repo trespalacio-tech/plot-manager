@@ -6,6 +6,7 @@ import { NotebookPage } from '@/pages/Notebook';
 import { ParcelsPage } from '@/pages/Parcels';
 import { CalendarPage } from '@/pages/Calendar';
 import { LearnPage } from '@/pages/Learn';
+import { CatalogsPage } from '@/pages/Catalogs';
 import { SettingsPage } from '@/pages/Settings';
 
 const FarmDetailPage = lazy(() =>
@@ -56,6 +57,7 @@ export const router = createHashRouter([
       },
       { path: 'calendario', element: <CalendarPage /> },
       { path: 'aprender', element: <LearnPage /> },
+      { path: 'catalogos', element: <CatalogsPage /> },
       { path: 'ajustes', element: <SettingsPage /> },
     ],
   },
