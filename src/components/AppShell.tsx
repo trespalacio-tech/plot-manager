@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { installAutoBackupOnClose } from '@/lib/backup';
 
 type Tab = {
   to: string;
@@ -17,6 +19,7 @@ const tabs: Tab[] = [
 ];
 
 export function AppShell(): JSX.Element {
+  useEffect(() => installAutoBackupOnClose(), []);
   return (
     <div className="flex min-h-full flex-col md:flex-row">
       <aside className="hidden md:flex md:w-56 md:flex-col md:border-r md:border-slate-200 md:bg-brand-50">

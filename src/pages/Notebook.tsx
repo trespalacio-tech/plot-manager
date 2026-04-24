@@ -26,6 +26,7 @@ import {
   OPERATION_TYPES,
 } from '@/lib/notebook/templates';
 import { downloadCsv, entriesToCsv } from '@/lib/notebook/csv';
+import { buildNotebookHtml, openNotebookPdf } from '@/lib/notebook/pdf';
 
 type Period = 'day' | 'week' | 'month' | 'all';
 
@@ -104,6 +105,21 @@ export function NotebookPage(): JSX.Element {
     downloadCsv(csv, `cuaderno-${stamp}.csv`);
   };
 
+  const onExportPdf = () => {
+    const periodLabels: Record<Period, string> = {
+      day: 'Periodo: hoy',
+      week: 'Periodo: semana en curso',
+      month: 'Periodo: mes en curso',
+      all: 'Periodo: todas las anotaciones',
+    };
+    const html = buildNotebookHtml(entries ?? [], {
+      parcels: parcelList,
+      farms: farms ?? [],
+      periodLabel: periodLabels[period],
+    });
+    openNotebookPdf(html);
+  };
+
   const hasData = entries && entries.length > 0;
   const needsBootstrap = farms && farms.length === 0;
 
@@ -132,6 +148,13 @@ export function NotebookPage(): JSX.Element {
                 disabled={!hasData}
               >
                 Exportar CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={onExportPdf}
+                disabled={!hasData}
+              >
+                Exportar PDF
               </Button>
             </div>
           </div>
