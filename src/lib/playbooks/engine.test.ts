@@ -9,7 +9,7 @@ import {
 } from '@/lib/db/repos';
 import { applicablePlaybooks, evaluatePlaybooks } from './engine';
 import { ALL_PLAYBOOKS } from './catalog';
-import { doy, doyInWindow } from './types';
+import { doy, doyInWindow, nextWindowDates } from './types';
 
 beforeEach(() => {
   resetDbForTests();
@@ -87,16 +87,45 @@ describe('applicablePlaybooks', () => {
   });
 });
 
+describe('nextWindowDates', () => {
+  it('ventana del año en curso si aún no termina', () => {
+    const now = new Date(2026, 1, 1); // 1 feb 2026
+    const w = nextWindowDates(now, doy(3, 15), doy(5, 15));
+    expect(w.start.getFullYear()).toBe(2026);
+    expect(w.start.getMonth()).toBe(2); // marzo
+    expect(w.end.getMonth()).toBe(4); // mayo
+  });
+
+  it('si la ventana ya pasó, salta al año siguiente', () => {
+    const now = new Date(2026, 10, 1); // 1 nov 2026
+    const w = nextWindowDates(now, doy(3, 15), doy(5, 15));
+    expect(w.start.getFullYear()).toBe(2027);
+    expect(w.end.getFullYear()).toBe(2027);
+  });
+
+  it('ventanas que cruzan fin de año: end en el año siguiente', () => {
+    const now = new Date(2026, 9, 1); // 1 oct 2026
+    const w = nextWindowDates(now, doy(11, 15), doy(2, 15));
+    expect(w.start.getFullYear()).toBe(2026);
+    expect(w.end.getFullYear()).toBe(2027);
+  });
+});
+
 describe('evaluatePlaybooks', () => {
-  it('crea solo las tareas cuyo DOY cae en la ventana', async () => {
+  it('genera todas las tareas del playbook con scheduledFor y dueDate', async () => {
     const { parcel } = await seedApple('TRANSITION');
     const now = new Date(2026, 2, 10); // 10 marzo
     const r = await evaluatePlaybooks({ now });
     expect(r.createdTasks).toBeGreaterThan(0);
     const tasks = await listTasks({ parcelId: parcel.id });
+    expect(tasks.length).toBe(r.createdTasks);
     for (const t of tasks) {
       expect(t.source).toBe('PLAYBOOK');
       expect(t.sourceRef).toMatch(/^apple-transition-burgos:/);
+      expect(t.scheduledFor).toBeInstanceOf(Date);
+      expect(t.dueDate).toBeInstanceOf(Date);
+      // dueDate >= scheduledFor (incluso ventanas que cruzan año)
+      expect(t.dueDate!.getTime()).toBeGreaterThanOrEqual(t.scheduledFor!.getTime());
     }
   });
 
@@ -130,6 +159,30 @@ describe('evaluatePlaybooks', () => {
         expect(t.windowEndDoy).toBeLessThanOrEqual(366);
       }
     }
+  });
+
+  it('genera nuevas tareas al año siguiente cuando las del año actual están hechas', async () => {
+    const { parcel } = await seedApple('TRANSITION');
+    const now2026 = new Date(2026, 2, 10);
+    await evaluatePlaybooks({ now: now2026 });
+    const created = await listTasks({ parcelId: parcel.id });
+    expect(created.length).toBeGreaterThan(0);
+    // Marca todas como hechas.
+    for (const t of created) await completeTask(t.id);
+
+    // Avanzamos un año: como cada tarea anual usa subKey con sufijo de año,
+    // las completadas no bloquean la generación de nuevas para el ciclo siguiente.
+    const now2027 = new Date(2027, 2, 10);
+    const r = await evaluatePlaybooks({ now: now2027 });
+    expect(r.createdTasks).toBeGreaterThan(0);
+
+    const all = await listTasks({ parcelId: parcel.id });
+    const pending = all.filter((t) => t.status === 'PENDING');
+    // Todas las tareas pendientes son del nuevo ciclo: ningún subKey se repite.
+    const subKeys = new Set(pending.map((t) => t.sourceRef));
+    expect(subKeys.size).toBe(pending.length);
+    // Las tareas completadas siguen ahí, distintas de las nuevas pendientes.
+    expect(all.length).toBe(created.length + r.createdTasks);
   });
 
   it('helper doy() coincide con fechas reales', () => {

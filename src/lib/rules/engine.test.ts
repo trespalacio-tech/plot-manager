@@ -105,4 +105,17 @@ describe('engine', () => {
     const second = (await listAlerts({ includeAcknowledged: true, includeExpired: true })).length;
     expect(second).toBe(first);
   });
+
+  it('rellena scheduledFor y dueDate cuando la regla no los aporta', async () => {
+    const { parcel } = await seed();
+    const now = new Date('2026-04-15');
+    await evaluateRules({ now, rules: [soilLowOm] });
+    const t = (await listTasks({ parcelId: parcel.id }))[0]!;
+    expect(t.scheduledFor).toBeInstanceOf(Date);
+    expect(t.dueDate).toBeInstanceOf(Date);
+    expect(t.scheduledFor!.getTime()).toBe(now.getTime());
+    // soilLowOm con MO 1.0% es MEDIUM (umbral HIGH es < 1.0) → 45 días
+    const days = (t.dueDate!.getTime() - t.scheduledFor!.getTime()) / (24 * 3600 * 1000);
+    expect(days).toBe(45);
+  });
 });

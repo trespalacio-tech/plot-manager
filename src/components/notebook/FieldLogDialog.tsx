@@ -26,6 +26,7 @@ import {
   createFieldLogEntry,
   updateFieldLogEntry,
 } from '@/lib/db/repos';
+import { markCoachStale } from '@/lib/coach/useAutoCoach';
 import {
   OPERATION_LABELS,
   OPERATION_TEMPLATES,
@@ -210,12 +211,20 @@ export function FieldLogDialog({
     } else {
       saved = await createFieldLogEntry(payload);
     }
+    markCoachStale();
     if (onSaved) await onSaved(saved);
     reset();
     onOpenChange(false);
   });
 
-  const voiceUrl = voiceBlob ? URL.createObjectURL(voiceBlob) : undefined;
+  const voiceUrl = useMemo(
+    () => (voiceBlob ? URL.createObjectURL(voiceBlob) : undefined),
+    [voiceBlob],
+  );
+  useEffect(() => {
+    if (!voiceUrl) return;
+    return () => URL.revokeObjectURL(voiceUrl);
+  }, [voiceUrl]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

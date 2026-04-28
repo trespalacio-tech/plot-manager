@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { parcelSchema, type ParcelFormValues } from '@/lib/validators/parcel';
 import { createParcel } from '@/lib/db/repos';
+import { markCoachStale } from '@/lib/coach/useAutoCoach';
 import { ParcelMap } from '@/components/map/ParcelMap';
 import type { CropType, IrrigationType, Parcel, ParcelStatus } from '@/lib/db/types';
 
@@ -55,6 +56,12 @@ const irrigationLabels: Record<IrrigationType, string> = {
   MICROSPRINKLER: 'Microaspersión',
   FLOOD: 'A manta',
 };
+
+function numberOrUndef(value: unknown): number | undefined {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const n = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
 
 const nextStepsByStatus: Record<ParcelStatus, string> = {
   DESIGN:
@@ -116,7 +123,7 @@ export function ParcelWizard({
     }
   };
 
-  const onSubmit = handleSubmit(async (data) => {
+  const onCreate = handleSubmit(async (data) => {
     const created = await createParcel({
       farmId,
       name: data.name,
@@ -134,9 +141,22 @@ export function ParcelWizard({
       irrigation: data.irrigation,
       notes: data.notes,
     });
+    markCoachStale();
     onCreated?.(created);
     close(false);
   });
+
+  const onFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'TEXTAREA') return;
+    e.preventDefault();
+    if (step < 4) {
+      void goNext();
+    } else {
+      void onCreate();
+    }
+  };
 
   const goNext = async () => {
     if (step === 1) {
@@ -148,7 +168,13 @@ export function ParcelWizard({
       if (!ok) return;
     }
     if (step === 3) {
-      const ok = await trigger();
+      const ok = await trigger([
+        'plantingYear',
+        'irrigation',
+        'spacingRowM',
+        'spacingPlantM',
+        'notes',
+      ]);
       if (!ok) return;
     }
     setStep((s) => (Math.min(4, s + 1) as Step));
@@ -167,7 +193,7 @@ export function ParcelWizard({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={onSubmit} className="grid gap-4" noValidate>
+        <div onKeyDown={onFormKeyDown} className="grid gap-4">
           {step === 1 && (
             <div className="grid gap-3">
               <div className="grid gap-1.5">
@@ -271,8 +297,11 @@ export function ParcelWizard({
                     id="slopePct"
                     type="number"
                     step="0.1"
-                    {...register('slopePct', { valueAsNumber: true })}
+                    {...register('slopePct', { setValueAs: numberOrUndef })}
                   />
+                  {errors.slopePct && (
+                    <p className="text-xs text-red-600">{errors.slopePct.message}</p>
+                  )}
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="rowOrientationDeg">Orientación filas (°)</Label>
@@ -280,8 +309,13 @@ export function ParcelWizard({
                     id="rowOrientationDeg"
                     type="number"
                     step="1"
-                    {...register('rowOrientationDeg', { valueAsNumber: true })}
+                    {...register('rowOrientationDeg', { setValueAs: numberOrUndef })}
                   />
+                  {errors.rowOrientationDeg && (
+                    <p className="text-xs text-red-600">
+                      {errors.rowOrientationDeg.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -295,8 +329,11 @@ export function ParcelWizard({
                   <Input
                     id="plantingYear"
                     type="number"
-                    {...register('plantingYear', { valueAsNumber: true })}
+                    {...register('plantingYear', { setValueAs: numberOrUndef })}
                   />
+                  {errors.plantingYear && (
+                    <p className="text-xs text-red-600">{errors.plantingYear.message}</p>
+                  )}
                 </div>
                 <div className="grid gap-1.5">
                   <Label>Riego</Label>
@@ -324,8 +361,11 @@ export function ParcelWizard({
                     id="spacingRowM"
                     type="number"
                     step="0.1"
-                    {...register('spacingRowM', { valueAsNumber: true })}
+                    {...register('spacingRowM', { setValueAs: numberOrUndef })}
                   />
+                  {errors.spacingRowM && (
+                    <p className="text-xs text-red-600">{errors.spacingRowM.message}</p>
+                  )}
                 </div>
                 <div className="grid gap-1.5">
                   <Label htmlFor="spacingPlantM">Marco entre plantas (m)</Label>
@@ -333,8 +373,11 @@ export function ParcelWizard({
                     id="spacingPlantM"
                     type="number"
                     step="0.1"
-                    {...register('spacingPlantM', { valueAsNumber: true })}
+                    {...register('spacingPlantM', { setValueAs: numberOrUndef })}
                   />
+                  {errors.spacingPlantM && (
+                    <p className="text-xs text-red-600">{errors.spacingPlantM.message}</p>
+                  )}
                 </div>
               </div>
               <div className="grid gap-1.5">
@@ -376,16 +419,20 @@ export function ParcelWizard({
               {step === 1 ? 'Cancelar' : 'Atrás'}
             </Button>
             {step < 4 ? (
-              <Button type="button" onClick={goNext}>
+              <Button type="button" onClick={() => void goNext()}>
                 Siguiente
               </Button>
             ) : (
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => void onCreate()}
+              >
                 Crear parcela
               </Button>
             )}
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

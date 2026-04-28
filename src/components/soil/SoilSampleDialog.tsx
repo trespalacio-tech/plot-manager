@@ -30,6 +30,7 @@ import {
   type SoilRecord,
   updateSoilRecord,
 } from '@/lib/db/repos';
+import { markCoachStale } from '@/lib/coach/useAutoCoach';
 
 const combinedSchema = z.object({
   sample: soilSampleSchema,
@@ -158,6 +159,7 @@ export function SoilSampleDialog({
     } else {
       await createSoilRecord(sampleInput, analysisInput);
     }
+    markCoachStale();
     onSaved?.();
     reset();
     setFileName(null);

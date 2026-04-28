@@ -7,8 +7,10 @@ import {
   createTask,
   dismissTask,
   listTasks,
+  markInProgress,
   postponeTask,
   reopenTask,
+  rescheduleTask,
   updateTask,
 } from '.';
 
@@ -125,6 +127,60 @@ describe('tasks repo', () => {
     await dismissTask(t.id);
     stored = (await listTasks({ status: 'DISMISSED' }))[0]!;
     expect(stored.status).toBe('DISMISSED');
+  });
+
+  it('postponeTask acepta nueva fecha y motivo', async () => {
+    const { parcel } = await setup();
+    const t = await createTask({
+      parcelId: parcel.id,
+      source: 'PLAYBOOK',
+      type: 'PRUNING',
+      title: 'Poda verde',
+      rationale: 'r',
+      priority: 'MEDIUM',
+      scheduledFor: new Date('2026-04-01'),
+    });
+    const newDate = new Date('2026-04-20');
+    await postponeTask(t.id, { newScheduledFor: newDate, reason: 'lluvia' });
+    const stored = await getDb().tasks.get(t.id);
+    expect(stored?.status).toBe('POSTPONED');
+    expect(stored?.postponeReason).toBe('lluvia');
+    expect(stored?.scheduledFor?.getTime()).toBe(newDate.getTime());
+  });
+
+  it('rescheduleTask mueve la fecha y deja la tarea PENDING limpia', async () => {
+    const { parcel } = await setup();
+    const t = await createTask({
+      parcelId: parcel.id,
+      source: 'PLAYBOOK',
+      type: 'MULCHING',
+      title: 'Acolchado',
+      rationale: 'r',
+      priority: 'HIGH',
+      scheduledFor: new Date('2026-05-01'),
+    });
+    await postponeTask(t.id, 'falta material');
+    const newDate = new Date('2026-05-15');
+    await rescheduleTask(t.id, newDate);
+    const stored = await getDb().tasks.get(t.id);
+    expect(stored?.status).toBe('PENDING');
+    expect(stored?.scheduledFor?.getTime()).toBe(newDate.getTime());
+    expect(stored?.postponeReason).toBeUndefined();
+  });
+
+  it('markInProgress marca tarea como IN_PROGRESS', async () => {
+    const { parcel } = await setup();
+    const t = await createTask({
+      parcelId: parcel.id,
+      source: 'USER',
+      type: 'MONITORING',
+      title: 'Monitoreo',
+      rationale: 'r',
+      priority: 'LOW',
+    });
+    await markInProgress(t.id);
+    const stored = await getDb().tasks.get(t.id);
+    expect(stored?.status).toBe('IN_PROGRESS');
   });
 
   it('updateTask aplica parche y actualiza updatedAt', async () => {

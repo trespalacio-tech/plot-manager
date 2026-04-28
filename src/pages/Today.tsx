@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { PageContainer } from '@/components/PageContainer';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
 import {
   acknowledgeAlert,
@@ -13,41 +13,34 @@ import {
   listFarms,
   listParcels,
   listTasks,
+  markInProgress,
   postponeTask,
   reopenTask,
+  rescheduleTask,
 } from '@/lib/db/repos';
 import type {
   Alert,
   AlertSeverity,
   Parcel,
   Task,
-  TaskPriority,
 } from '@/lib/db/types';
-import { OPERATION_LABELS } from '@/lib/notebook/templates';
 import { evaluateCoach } from '@/lib/playbooks';
+import { markCoachStale, useAutoCoach } from '@/lib/coach/useAutoCoach';
 import { CoachWizardDialog } from '@/components/coach/CoachWizardDialog';
-import {
-  COACH_WIZARDS,
-  getWizard,
-  wizardKeyForType,
-  type CoachWizard,
-} from '@/lib/coach/wizards';
+import type { CoachWizard } from '@/lib/coach/wizards';
 import { DiagnoseWizardDialog } from '@/components/diagnose/DiagnoseWizardDialog';
 import type { DiagnoseHypothesis } from '@/lib/diagnose/types';
-
-const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  URGENT: 'Urgente',
-  HIGH: 'Alta',
-  MEDIUM: 'Media',
-  LOW: 'Baja',
-};
-
-const PRIORITY_CLASS: Record<TaskPriority, string> = {
-  URGENT: 'bg-red-100 text-red-800',
-  HIGH: 'bg-orange-100 text-orange-800',
-  MEDIUM: 'bg-amber-100 text-amber-800',
-  LOW: 'bg-slate-100 text-slate-700',
-};
+import { TaskListRow } from '@/components/coach/TaskListRow';
+import { TaskDetailDialog } from '@/components/coach/TaskDetailDialog';
+import { PostponeDialog } from '@/components/coach/PostponeDialog';
+import { NotificationsBanner } from '@/components/coach/NotificationsBanner';
+import {
+  compareTasks,
+  taskUrgency,
+  URGENCY_BADGE_CLASS,
+  URGENCY_LABEL,
+  type TaskUrgency,
+} from '@/lib/coach/urgency';
 
 const SEVERITY_LABEL: Record<AlertSeverity, string> = {
   CRITICAL: 'Crítica',
@@ -61,6 +54,15 @@ const SEVERITY_CLASS: Record<AlertSeverity, string> = {
   INFO: 'border-sky-300 bg-sky-50',
 };
 
+const SECTION_ORDER: TaskUrgency[] = [
+  'OVERDUE',
+  'TODAY',
+  'SOON',
+  'THIS_WEEK',
+  'UPCOMING',
+  'LATER',
+];
+
 export function TodayPage(): JSX.Element {
   const farms = useLiveQuery(() => listFarms(), []);
   const parcels = useLiveQuery(() => listParcels(), []);
@@ -69,24 +71,83 @@ export function TodayPage(): JSX.Element {
     [],
   );
   const alerts = useLiveQuery(() => listAlerts(), []);
+  const auto = useAutoCoach();
 
   const [evaluating, setEvaluating] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const [logOpen, setLogOpen] = useState(false);
   const [completingTask, setCompletingTask] = useState<Task | undefined>(undefined);
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [activeWizard, setActiveWizard] = useState<CoachWizard | undefined>(undefined);
-  const [wizardTask, setWizardTask] = useState<Task | undefined>(undefined);
-  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
   const [diagnosePrefill, setDiagnosePrefill] = useState<
     { title: string; description: string } | undefined
   >(undefined);
+
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeTask, setActiveTask] = useState<Task | undefined>(undefined);
+
+  const [postponeOpen, setPostponeOpen] = useState(false);
+  const [postponeTarget, setPostponeTarget] = useState<Task | undefined>(undefined);
+
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [activeWizard, setActiveWizard] = useState<CoachWizard | undefined>(undefined);
+  const [wizardTask, setWizardTask] = useState<Task | undefined>(undefined);
+
+  const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+
+  const [parcelFilter, setParcelFilter] = useState<string>('ALL');
 
   const parcelMap = useMemo(() => {
     const m = new Map<string, Parcel>();
     (parcels ?? []).forEach((p) => m.set(p.id, p));
     return m;
   }, [parcels]);
+
+  const allTasks = tasks ?? [];
+
+  const filteredTasks = useMemo(() => {
+    if (parcelFilter === 'ALL') return allTasks;
+    if (parcelFilter === 'NONE') return allTasks.filter((t) => !t.parcelId);
+    return allTasks.filter((t) => t.parcelId === parcelFilter);
+  }, [allTasks, parcelFilter]);
+
+  const grouped = useMemo(() => {
+    const m = new Map<TaskUrgency, Task[]>();
+    SECTION_ORDER.forEach((u) => m.set(u, []));
+    filteredTasks.forEach((t) => {
+      const u = taskUrgency(t);
+      m.get(u)!.push(t);
+    });
+    m.forEach((list) => list.sort((a, b) => compareTasks(a, b)));
+    return m;
+  }, [filteredTasks]);
+
+  const counts = useMemo(() => {
+    const c: Record<TaskUrgency, number> = {
+      OVERDUE: 0,
+      TODAY: 0,
+      SOON: 0,
+      THIS_WEEK: 0,
+      UPCOMING: 0,
+      LATER: 0,
+    };
+    filteredTasks.forEach((t) => {
+      c[taskUrgency(t)] += 1;
+    });
+    return c;
+  }, [filteredTasks]);
+
+  const parcelsWithTasks = useMemo(() => {
+    const ids = new Set<string>();
+    let hasUnassigned = false;
+    allTasks.forEach((t) => {
+      if (t.parcelId) ids.add(t.parcelId);
+      else hasUnassigned = true;
+    });
+    return {
+      parcels: (parcels ?? []).filter((p) => ids.has(p.id)),
+      hasUnassigned,
+    };
+  }, [allTasks, parcels]);
 
   if (farms && farms.length === 0) {
     return (
@@ -116,6 +177,7 @@ export function TodayPage(): JSX.Element {
   const onEvaluate = async () => {
     setEvaluating(true);
     try {
+      markCoachStale();
       const r = await evaluateCoach();
       setLastResult(
         `Coach actualizado: ${r.createdTasks} nuevas, ${r.updatedTasks} revisadas, ${r.skippedTasks} ya hechas, ${r.createdAlerts} avisos.`,
@@ -125,47 +187,67 @@ export function TodayPage(): JSX.Element {
     }
   };
 
-  const wizardForTask = (t: Task): CoachWizard | undefined => {
-    if (t.guidanceKey) {
-      const w = getWizard(t.guidanceKey);
-      if (w) return w;
-    }
-    const fallback = wizardKeyForType(t.type);
-    return fallback ? COACH_WIZARDS[fallback] : undefined;
+  const openDetail = (t: Task) => {
+    setActiveTask(t);
+    setDetailOpen(true);
   };
 
-  const onShowWizard = (t: Task) => {
-    const w = wizardForTask(t);
-    if (!w) return;
-    setActiveWizard(w);
+  const closeDetail = () => {
+    setDetailOpen(false);
+    setActiveTask(undefined);
+  };
+
+  const onShowWizard = (wizard: CoachWizard, t: Task) => {
+    setActiveWizard(wizard);
     setWizardTask(t);
     setWizardOpen(true);
+    setDetailOpen(false);
   };
 
   const onComplete = (t: Task) => {
     setCompletingTask(t);
-    setDialogOpen(true);
+    setLogOpen(true);
+    setDetailOpen(false);
   };
 
-  const onPostpone = async (t: Task) => {
-    const reason = prompt('Motivo (opcional):') ?? undefined;
-    await postponeTask(t.id, reason);
+  const onAskPostpone = (t: Task) => {
+    setPostponeTarget(t);
+    setPostponeOpen(true);
+    setDetailOpen(false);
+  };
+
+  const onConfirmPostpone = async (date: Date, reason?: string) => {
+    if (!postponeTarget) return;
+    await postponeTask(postponeTarget.id, { newScheduledFor: date, reason });
+    setPostponeTarget(undefined);
   };
 
   const onDismiss = async (t: Task) => {
     if (!confirm(`¿Descartar «${t.title}»? No volverá a aparecer para esta parcela.`)) return;
     await dismissTask(t.id);
+    closeDetail();
   };
 
   const onReopen = async (t: Task) => {
     await reopenTask(t.id);
+    closeDetail();
+  };
+
+  const onMarkInProgress = async (t: Task) => {
+    await markInProgress(t.id);
+    closeDetail();
+  };
+
+  const onReschedule = async (t: Task, newDate: Date) => {
+    await rescheduleTask(t.id, newDate);
+    closeDetail();
   };
 
   const onAck = async (a: Alert) => {
     await acknowledgeAlert(a.id);
   };
 
-  const sortedTasks = tasks ?? [];
+  const actionableCount = counts.OVERDUE + counts.TODAY + counts.SOON;
   const sortedAlerts = alerts ?? [];
 
   return (
@@ -173,6 +255,8 @@ export function TodayPage(): JSX.Element {
       title="¿Qué hago hoy?"
       subtitle="Tu Coach de campo. Tareas y avisos con base agronómica."
     >
+      <NotificationsBanner hasUrgent={counts.OVERDUE + counts.TODAY > 0} />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
           <Button onClick={onEvaluate} disabled={evaluating || (parcels?.length ?? 0) === 0}>
@@ -182,10 +266,44 @@ export function TodayPage(): JSX.Element {
             Veo algo raro
           </Button>
         </div>
-        {lastResult && <span className="text-xs text-slate-500">{lastResult}</span>}
+        {auto.evaluating ? (
+          <span className="text-xs text-slate-500">Coach calculando tareas…</span>
+        ) : (
+          lastResult && <span className="text-xs text-slate-500">{lastResult}</span>
+        )}
       </div>
 
-      <section className="grid gap-3">
+      <SummaryCard counts={counts} actionable={actionableCount} total={filteredTasks.length} />
+
+      {(parcelsWithTasks.parcels.length > 1 || parcelsWithTasks.hasUnassigned) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <FilterChip
+            label={`Todas (${allTasks.length})`}
+            active={parcelFilter === 'ALL'}
+            onClick={() => setParcelFilter('ALL')}
+          />
+          {parcelsWithTasks.parcels.map((p) => {
+            const n = allTasks.filter((t) => t.parcelId === p.id).length;
+            return (
+              <FilterChip
+                key={p.id}
+                label={`${p.name} (${n})`}
+                active={parcelFilter === p.id}
+                onClick={() => setParcelFilter(p.id)}
+              />
+            );
+          })}
+          {parcelsWithTasks.hasUnassigned && (
+            <FilterChip
+              label={`Sin parcela (${allTasks.filter((t) => !t.parcelId).length})`}
+              active={parcelFilter === 'NONE'}
+              onClick={() => setParcelFilter('NONE')}
+            />
+          )}
+        </div>
+      )}
+
+      <section className="mt-6 grid gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
           Avisos ({sortedAlerts.length})
         </h2>
@@ -206,37 +324,72 @@ export function TodayPage(): JSX.Element {
         ))}
       </section>
 
-      <section className="mt-6 grid gap-3">
+      <section className="mt-6 grid gap-4">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-          Tareas ({sortedTasks.length})
+          Tareas ({filteredTasks.length})
         </h2>
-        {sortedTasks.length === 0 && (
+
+        {filteredTasks.length === 0 && (
           <Card>
             <CardContent className="py-4 text-sm text-slate-600">
-              El coach no propone tareas ahora mismo. Pulsa <strong>Actualizar coach</strong>{' '}
-              para recalcular.
+              {allTasks.length === 0 ? (
+                <>
+                  El coach no propone tareas ahora mismo. Pulsa{' '}
+                  <strong>Actualizar coach</strong> para recalcular.
+                </>
+              ) : (
+                <>No hay tareas para esta parcela. Cambia el filtro de arriba.</>
+              )}
             </CardContent>
           </Card>
         )}
-        {sortedTasks.map((t) => (
-          <TaskCard
-            key={t.id}
-            task={t}
-            parcel={t.parcelId ? parcelMap.get(t.parcelId) : undefined}
-            wizard={wizardForTask(t)}
-            onShowWizard={() => onShowWizard(t)}
-            onComplete={() => onComplete(t)}
-            onPostpone={() => onPostpone(t)}
-            onDismiss={() => onDismiss(t)}
-            onReopen={() => onReopen(t)}
-          />
-        ))}
+
+        {SECTION_ORDER.map((u) => {
+          const list = grouped.get(u) ?? [];
+          if (list.length === 0) return null;
+          return (
+            <UrgencySection
+              key={u}
+              urgency={u}
+              tasks={list}
+              parcelMap={parcelMap}
+              onClick={openDetail}
+            />
+          );
+        })}
       </section>
 
-      <FieldLogDialog
-        open={dialogOpen}
+      <TaskDetailDialog
+        open={detailOpen}
         onOpenChange={(open) => {
-          setDialogOpen(open);
+          setDetailOpen(open);
+          if (!open) setActiveTask(undefined);
+        }}
+        task={activeTask}
+        parcel={activeTask?.parcelId ? parcelMap.get(activeTask.parcelId) : undefined}
+        onComplete={onComplete}
+        onPostpone={onAskPostpone}
+        onDismiss={onDismiss}
+        onReopen={onReopen}
+        onMarkInProgress={onMarkInProgress}
+        onReschedule={onReschedule}
+        onShowWizard={onShowWizard}
+      />
+
+      <PostponeDialog
+        open={postponeOpen}
+        onOpenChange={(open) => {
+          setPostponeOpen(open);
+          if (!open) setPostponeTarget(undefined);
+        }}
+        task={postponeTarget}
+        onConfirm={onConfirmPostpone}
+      />
+
+      <FieldLogDialog
+        open={logOpen}
+        onOpenChange={(open) => {
+          setLogOpen(open);
           if (!open) {
             setCompletingTask(undefined);
             setDiagnosePrefill(undefined);
@@ -273,7 +426,7 @@ export function TodayPage(): JSX.Element {
             title: `Observación · ${h.title}`,
             description: buildDiagnoseDescription(h),
           });
-          setDialogOpen(true);
+          setLogOpen(true);
         }}
       />
 
@@ -303,96 +456,121 @@ export function TodayPage(): JSX.Element {
   );
 }
 
-function TaskCard({
-  task,
-  parcel,
-  wizard,
-  onShowWizard,
-  onComplete,
-  onPostpone,
-  onDismiss,
-  onReopen,
+function FilterChip({
+  label,
+  active,
+  onClick,
 }: {
-  task: Task;
-  parcel?: Parcel;
-  wizard?: CoachWizard;
-  onShowWizard: () => void;
-  onComplete: () => void;
-  onPostpone: () => void;
-  onDismiss: () => void;
-  onReopen: () => void;
-}) {
-  const [showBasis, setShowBasis] = useState(false);
-  const due = task.dueDate ?? task.scheduledFor;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        'rounded-full border px-2.5 py-1 text-xs transition',
+        active
+          ? 'border-brand-600 bg-brand-600 text-white'
+          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
+      ].join(' ')}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SummaryCard({
+  counts,
+  actionable,
+  total,
+}: {
+  counts: Record<TaskUrgency, number>;
+  actionable: number;
+  total: number;
+}): JSX.Element {
+  const headline = (() => {
+    if (total === 0) return 'No hay tareas pendientes para esta vista.';
+    if (counts.OVERDUE > 0) {
+      return `Hay ${counts.OVERDUE} tarea${counts.OVERDUE === 1 ? '' : 's'} atrasada${counts.OVERDUE === 1 ? '' : 's'}: empieza por ahí.`;
+    }
+    if (counts.TODAY > 0) {
+      return `Hoy tienes ${counts.TODAY} tarea${counts.TODAY === 1 ? '' : 's'} para hacer.`;
+    }
+    if (counts.SOON > 0) {
+      return `${counts.SOON} tarea${counts.SOON === 1 ? '' : 's'} en los próximos 2-3 días.`;
+    }
+    if (counts.THIS_WEEK > 0) {
+      return `${counts.THIS_WEEK} tarea${counts.THIS_WEEK === 1 ? '' : 's'} esta semana.`;
+    }
+    return 'Sin urgencias inmediatas. Mira más adelante en el calendario.';
+  })();
+
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">{task.title}</CardTitle>
-          <div className="flex items-center gap-2">
-            <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${PRIORITY_CLASS[task.priority]}`}
-            >
-              {PRIORITY_LABEL[task.priority]}
-            </span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
-              {OPERATION_LABELS[task.type]}
-            </span>
-            {task.status === 'POSTPONED' && (
-              <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-700">
-                Pospuesta
-              </span>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="text-xs text-slate-500">
-          {parcel ? parcel.name : 'Sin parcela'}
-          {due && <> · vence {due.toLocaleDateString('es-ES')}</>}
-        </div>
-        <p className="mt-2 text-sm text-slate-700">{task.rationale}</p>
-        {task.scientificBasis && (
-          <div className="mt-2">
-            <button
-              className="text-xs font-medium text-brand-700 hover:underline"
-              onClick={() => setShowBasis((v) => !v)}
-            >
-              {showBasis ? 'Ocultar base científica' : 'Ver base científica'}
-            </button>
-            {showBasis && (
-              <p className="mt-1 rounded bg-slate-50 p-2 text-xs text-slate-600">
-                {task.scientificBasis}
-              </p>
-            )}
+      <CardContent className="py-3">
+        <p className="text-sm font-medium text-slate-800">{headline}</p>
+        {total > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {SECTION_ORDER.map((u) => {
+              const n = counts[u];
+              if (n === 0) return null;
+              return (
+                <span
+                  key={u}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${URGENCY_BADGE_CLASS[u]}`}
+                >
+                  {URGENCY_LABEL[u]}: {n}
+                </span>
+              );
+            })}
           </div>
         )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {task.status === 'POSTPONED' ? (
-            <Button size="sm" onClick={onReopen}>
-              Reactivar
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" onClick={onComplete}>
-                Hecho
-              </Button>
-              <Button variant="outline" size="sm" onClick={onPostpone}>
-                Posponer
-              </Button>
-            </>
-          )}
-          {wizard && (
-            <Button variant="outline" size="sm" onClick={onShowWizard}>
-              Cómo hacerlo
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onDismiss}>
-            Descartar
-          </Button>
-        </div>
+        {total > 0 && actionable === 0 && (
+          <p className="mt-2 text-xs text-slate-500">
+            Nada urgente esta semana — buena ventana para planificar o adelantar trabajo
+            preventivo.
+          </p>
+        )}
       </CardContent>
     </Card>
+  );
+}
+
+function UrgencySection({
+  urgency,
+  tasks,
+  parcelMap,
+  onClick,
+}: {
+  urgency: TaskUrgency;
+  tasks: Task[];
+  parcelMap: Map<string, Parcel>;
+  onClick: (t: Task) => void;
+}): JSX.Element {
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex items-center gap-2">
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${URGENCY_BADGE_CLASS[urgency]}`}
+        >
+          {URGENCY_LABEL[urgency]}
+        </span>
+        <span className="text-xs text-slate-500">{tasks.length}</span>
+      </div>
+      <div className="grid gap-1.5">
+        {tasks.map((t) => (
+          <TaskListRow
+            key={t.id}
+            task={t}
+            parcel={t.parcelId ? parcelMap.get(t.parcelId) : undefined}
+            onClick={onClick}
+            showUrgency={false}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -62,6 +62,7 @@ export function DiagnoseWizardDialog({
   const goBack = () => {
     if (hypothesisId) {
       setHypothesisId(undefined);
+      setHistory((prev) => prev.slice(0, -1));
       return;
     }
     if (history.length === 0) return;

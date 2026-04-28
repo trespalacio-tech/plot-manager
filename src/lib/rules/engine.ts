@@ -32,13 +32,38 @@ function refFor(ns: string, parcelId: string, subKey?: string): string {
   return subKey ? `${ns}:${parcelId}:${subKey}` : `${ns}:${parcelId}`;
 }
 
+const MS_DAY = 24 * 60 * 60 * 1000;
+
+function defaultDueDays(priority: TaskProposal['priority']): number {
+  switch (priority) {
+    case 'URGENT':
+      return 7;
+    case 'HIGH':
+      return 21;
+    case 'MEDIUM':
+      return 45;
+    case 'LOW':
+      return 90;
+  }
+}
+
+function withDefaultDates(p: TaskProposal, now: Date): TaskProposal {
+  if (p.scheduledFor && p.dueDate) return p;
+  const scheduledFor = p.scheduledFor ?? now;
+  const dueDate =
+    p.dueDate ?? new Date(scheduledFor.getTime() + defaultDueDays(p.priority) * MS_DAY);
+  return { ...p, scheduledFor, dueDate };
+}
+
 export async function applyTaskProposal(
   ns: string,
   source: TaskSource,
   parcel: Parcel,
-  p: TaskProposal,
+  proposal: TaskProposal,
   result: EvaluateResult,
+  now: Date = new Date(),
 ): Promise<void> {
+  const p = withDefaultDates(proposal, now);
   const sourceRef = refFor(ns, parcel.id, p.subKey);
   const existing = await listTasks({ sourceRef });
   if (existing.length > 0) {
@@ -113,7 +138,7 @@ export async function evaluateRules(
       const proposals = rule.evaluate(ctx);
       for (const p of proposals) {
         if (p.kind === 'TASK') {
-          await applyTaskProposal(rule.id, 'RULE_ENGINE', parcel, p, result);
+          await applyTaskProposal(rule.id, 'RULE_ENGINE', parcel, p, result, now);
         } else {
           await applyAlertProposal(rule.id, parcel, p, result);
         }

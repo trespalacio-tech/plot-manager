@@ -53,8 +53,8 @@ export async function createTask(input: TaskInput): Promise<Task> {
   const task: Task = {
     id: newId(),
     ...nowStamps(),
-    status: input.status ?? 'PENDING',
     ...input,
+    status: input.status ?? 'PENDING',
   };
   await getDb().tasks.add(task);
   return task;
@@ -77,13 +77,49 @@ export async function completeTask(
   });
 }
 
-export async function postponeTask(id: string, reason?: string): Promise<void> {
+export interface PostponeOptions {
+  reason?: string;
+  newScheduledFor?: Date;
+  newDueDate?: Date;
+}
+
+export async function postponeTask(
+  id: string,
+  optionsOrReason?: string | PostponeOptions,
+): Promise<void> {
   const now = new Date();
-  await getDb().tasks.update(id, {
+  const opts: PostponeOptions =
+    typeof optionsOrReason === 'string'
+      ? { reason: optionsOrReason }
+      : (optionsOrReason ?? {});
+  const patch: TaskPatch = {
     status: 'POSTPONED',
-    postponeReason: reason,
+    postponeReason: opts.reason,
     updatedAt: now,
-  });
+  };
+  if (opts.newScheduledFor) patch.scheduledFor = opts.newScheduledFor;
+  if (opts.newDueDate) patch.dueDate = opts.newDueDate;
+  await getDb().tasks.update(id, patch);
+}
+
+export async function rescheduleTask(
+  id: string,
+  newScheduledFor: Date,
+  newDueDate?: Date,
+): Promise<void> {
+  const now = new Date();
+  const patch: TaskPatch = {
+    scheduledFor: newScheduledFor,
+    status: 'PENDING',
+    postponeReason: undefined,
+    updatedAt: now,
+  };
+  if (newDueDate) patch.dueDate = newDueDate;
+  await getDb().tasks.update(id, patch);
+}
+
+export async function markInProgress(id: string): Promise<void> {
+  await getDb().tasks.update(id, { status: 'IN_PROGRESS', updatedAt: new Date() });
 }
 
 export async function dismissTask(id: string): Promise<void> {
@@ -91,5 +127,9 @@ export async function dismissTask(id: string): Promise<void> {
 }
 
 export async function reopenTask(id: string): Promise<void> {
-  await getDb().tasks.update(id, { status: 'PENDING', updatedAt: new Date() });
+  await getDb().tasks.update(id, {
+    status: 'PENDING',
+    postponeReason: undefined,
+    updatedAt: new Date(),
+  });
 }

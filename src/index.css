@@ -20,3 +20,15 @@
       sans-serif;
   }
 }
+
+/*
+ * Leaflet's internal panes use z-index 200–800. Without a stacking
+ * context on .leaflet-container they bleed over modal overlays and
+ * dialogs. Pinning the container to z-index 0 (with isolation) keeps
+ * all map layers and controls confined.
+ */
+.leaflet-container {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+}

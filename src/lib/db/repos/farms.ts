@@ -1,6 +1,7 @@
 import { getDb } from '../db';
 import type { Farm } from '../types';
 import { newId, nowStamps } from './ids';
+import { cascadeDeleteParcels, parcelCascadeTables } from './parcels';
 
 export type FarmInput = Omit<Farm, 'id' | 'createdAt' | 'updatedAt'>;
 export type FarmPatch = Partial<FarmInput>;
@@ -25,18 +26,11 @@ export async function updateFarm(id: string, patch: FarmPatch): Promise<void> {
 
 export async function deleteFarm(id: string): Promise<void> {
   const db = getDb();
-  await db.transaction(
-    'rw',
-    [db.farms, db.parcels, db.parcelStatusHistory, db.varieties],
-    async () => {
-      const parcels = await db.parcels.where('farmId').equals(id).toArray();
-      const parcelIds = parcels.map((p) => p.id);
-      if (parcelIds.length) {
-        await db.parcelStatusHistory.where('parcelId').anyOf(parcelIds).delete();
-        await db.varieties.where('parcelId').anyOf(parcelIds).delete();
-        await db.parcels.bulkDelete(parcelIds);
-      }
-      await db.farms.delete(id);
-    },
-  );
+  await db.transaction('rw', [db.farms, ...parcelCascadeTables(db)], async () => {
+    const parcels = await db.parcels.where('farmId').equals(id).toArray();
+    const parcelIds = parcels.map((p) => p.id);
+    await cascadeDeleteParcels(db, parcelIds);
+    await db.biodiversityFeatures.where('farmId').equals(id).delete();
+    await db.farms.delete(id);
+  });
 }

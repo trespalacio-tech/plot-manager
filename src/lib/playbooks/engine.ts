@@ -9,7 +9,7 @@ import {
 import type { TaskProposal } from '@/lib/rules/types';
 import { ALL_PLAYBOOKS } from './catalog';
 import type { Playbook } from './types';
-import { doyInWindow } from './types';
+import { nextWindowDates } from './types';
 
 export interface PlaybookEvaluateOptions {
   now?: Date;
@@ -35,12 +35,6 @@ function matchesCrop(parcel: Parcel, playbook: Playbook): boolean {
   return false;
 }
 
-function dayOfYear(d: Date): number {
-  const start = new Date(d.getFullYear(), 0, 0);
-  const diff = d.getTime() - start.getTime();
-  return Math.floor(diff / (24 * 60 * 60 * 1000));
-}
-
 export async function evaluatePlaybooks(
   options: PlaybookEvaluateOptions = {},
 ): Promise<EvaluateResult> {
@@ -48,24 +42,27 @@ export async function evaluatePlaybooks(
   const parcels = options.parcels ?? (await listParcels());
   const playbooks = options.playbooks ?? ALL_PLAYBOOKS;
   const result = emptyResult();
-  const today = dayOfYear(now);
 
   for (const parcel of parcels) {
     const matches = applicablePlaybooks(parcel, playbooks);
     for (const playbook of matches) {
       for (const task of playbook.tasks) {
-        if (!doyInWindow(today, task.windowStartDoy, task.windowEndDoy)) continue;
+        const window = nextWindowDates(now, task.windowStartDoy, task.windowEndDoy);
         const proposal: TaskProposal = {
           kind: 'TASK',
-          subKey: task.id,
+          // Suffix con el año del inicio de ventana → cada año genera tarea nueva.
+          // Sin esto, una tarea anual completada nunca volvería a aparecer.
+          subKey: `${task.id}:${window.start.getFullYear()}`,
           operationType: task.type,
           title: task.title,
           rationale: task.rationale,
           scientificBasis: task.scientificBasis,
           guidanceKey: task.guidanceKey,
           priority: task.priority,
+          scheduledFor: window.start,
+          dueDate: window.end,
         };
-        await applyTaskProposal(playbook.id, 'PLAYBOOK', parcel, proposal, result);
+        await applyTaskProposal(playbook.id, 'PLAYBOOK', parcel, proposal, result, now);
       }
     }
   }

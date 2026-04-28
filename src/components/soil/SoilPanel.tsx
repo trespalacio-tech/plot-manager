@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   CartesianGrid,
@@ -331,9 +331,15 @@ function SampleRow({
     analysis.organicMatterPct !== undefined
       ? organicCarbonFromOM(analysis.organicMatterPct).toFixed(2)
       : '—';
-  const pdfUrl = sample.labReportFileBlob
-    ? URL.createObjectURL(sample.labReportFileBlob)
-    : undefined;
+  const pdfBlob = sample.labReportFileBlob;
+  const pdfUrl = useMemo(
+    () => (pdfBlob ? URL.createObjectURL(pdfBlob) : undefined),
+    [pdfBlob],
+  );
+  useEffect(() => {
+    if (!pdfUrl) return;
+    return () => URL.revokeObjectURL(pdfUrl);
+  }, [pdfUrl]);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white p-3 text-sm">
       <div>
