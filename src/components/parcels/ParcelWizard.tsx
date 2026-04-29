@@ -25,7 +25,13 @@ import { parcelSchema, type ParcelFormValues } from '@/lib/validators/parcel';
 import { createParcel } from '@/lib/db/repos';
 import { markCoachStale } from '@/lib/coach/useAutoCoach';
 import { ParcelMap } from '@/components/map/ParcelMap';
-import type { CropType, IrrigationType, Parcel, ParcelStatus } from '@/lib/db/types';
+import type {
+  CropType,
+  IrrigationType,
+  Parcel,
+  ParcelStatus,
+  PrimarySpecies,
+} from '@/lib/db/types';
 
 interface Props {
   open: boolean;
@@ -39,9 +45,28 @@ interface Props {
 type Step = 1 | 2 | 3 | 4;
 
 const cropLabels: Record<CropType, string> = {
-  FRUIT_TREE: 'Frutal',
+  FRUIT_TREE: 'Frutal de pepita/hueso',
+  NUT_TREE: 'Frutos secos',
   VINEYARD: 'Viñedo',
   MIXED: 'Mixto',
+};
+
+// Especies disponibles según el cropType. Cuando hay opciones, mostramos
+// el selector y filtramos los playbooks por la especie elegida.
+const speciesByCrop: Partial<Record<CropType, { value: PrimarySpecies; label: string }[]>> = {
+  NUT_TREE: [
+    { value: 'almendro', label: 'Almendro' },
+    { value: 'nogal', label: 'Nogal' },
+    { value: 'avellano', label: 'Avellano' },
+    { value: 'pistacho', label: 'Pistacho' },
+  ],
+  FRUIT_TREE: [
+    { value: 'manzano', label: 'Manzano' },
+    { value: 'peral', label: 'Peral' },
+    { value: 'cerezo', label: 'Cerezo' },
+    { value: 'membrillero', label: 'Membrillero' },
+  ],
+  VINEYARD: [{ value: 'tempranillo', label: 'Tempranillo' }],
 };
 
 const statusLabels: Record<ParcelStatus, string> = {
@@ -105,9 +130,12 @@ export function ParcelWizard({
 
   const status = watch('status');
   const cropType = watch('cropType');
+  const primarySpecies = watch('primarySpecies');
   const irrigation = watch('irrigation');
   const areaHa = watch('areaHa');
   const name = watch('name');
+
+  const speciesOptions = speciesByCrop[cropType];
 
   const mapParcels = useMemo(
     () => (existingParcels ?? []).map((p) => ({ id: p.id, name: p.name, geometry: p.geometry })),
@@ -134,6 +162,7 @@ export function ParcelWizard({
       aspect: data.aspect,
       status: data.status,
       cropType: data.cropType,
+      primarySpecies: data.primarySpecies,
       plantingYear: data.plantingYear,
       spacingRowM: data.spacingRowM,
       spacingPlantM: data.spacingPlantM,
@@ -212,7 +241,12 @@ export function ParcelWizard({
                   <Label>Cultivo</Label>
                   <Select
                     value={cropType}
-                    onValueChange={(v) => setValue('cropType', v as CropType)}
+                    onValueChange={(v) => {
+                      const next = v as CropType;
+                      setValue('cropType', next);
+                      // Al cambiar de cultivo, la especie anterior pierde sentido.
+                      setValue('primarySpecies', undefined, { shouldValidate: false });
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -245,6 +279,35 @@ export function ParcelWizard({
                   </Select>
                 </div>
               </div>
+              {speciesOptions && (
+                <div className="grid gap-1.5">
+                  <Label>Especie principal</Label>
+                  <Select
+                    value={primarySpecies ?? ''}
+                    onValueChange={(v) =>
+                      setValue('primarySpecies', v as PrimarySpecies, {
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Elige especie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {speciesOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-stone-500">
+                    {cropType === 'NUT_TREE'
+                      ? 'Cada fruto seco tiene un calendario y plagas distintas. Elegir la especie permite al Coach proponer solo las tareas relevantes.'
+                      : 'Especificar la especie ayuda al Coach a aplicar el playbook adecuado.'}
+                  </p>
+                </div>
+              )}
               <p className="rounded-md bg-brand-50 p-3 text-xs text-slate-700">
                 <strong>Estado {statusLabels[status]}:</strong>{' '}
                 {status === 'DESIGN' &&

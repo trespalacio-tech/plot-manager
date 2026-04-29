@@ -8,10 +8,14 @@ interface Props {
 
 export function PageContainer({ title, subtitle, children }: Props): JSX.Element {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-600">{subtitle}</p>}
+    <div className="mx-auto w-full max-w-3xl px-4 py-7 md:py-9">
+      <header className="mb-7">
+        <h1 className="title-leaf text-[1.65rem] font-semibold leading-tight text-stone-900">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="mt-3 text-sm leading-relaxed text-stone-600">{subtitle}</p>
+        )}
       </header>
       {children}
     </div>

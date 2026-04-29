@@ -7,7 +7,7 @@ export const vineTempranilloRegenerative: Playbook = {
   description:
     'Viñedo estable: cubierta permanente, cobre mínimo, deshojado selectivo, foco en calidad uva y biodiversidad.',
   cropType: 'VINEYARD',
-  species: 'Tempranillo',
+  species: 'tempranillo',
   applicableStatuses: ['REGENERATIVE'],
   region: 'BURGOS',
   tasks: [

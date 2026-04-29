@@ -34,6 +34,7 @@ import { TaskListRow } from '@/components/coach/TaskListRow';
 import { TaskDetailDialog } from '@/components/coach/TaskDetailDialog';
 import { PostponeDialog } from '@/components/coach/PostponeDialog';
 import { NotificationsBanner } from '@/components/coach/NotificationsBanner';
+import { InstallBanner } from '@/components/pwa/InstallBanner';
 import {
   compareTasks,
   taskUrgency,
@@ -255,6 +256,7 @@ export function TodayPage(): JSX.Element {
       title="¿Qué hago hoy?"
       subtitle="Tu Coach de campo. Tareas y avisos con base agronómica."
     >
+      <InstallBanner />
       <NotificationsBanner hasUrgent={counts.OVERDUE + counts.TODAY > 0} />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

@@ -7,7 +7,7 @@ export const vineTempranilloTransition: Playbook = {
   description:
     'Reconvertir viña convencional: cubiertas, cobre fraccionado, deshojado sanitario, control de mildiu con modelo 3-10.',
   cropType: 'VINEYARD',
-  species: 'Tempranillo',
+  species: 'tempranillo',
   applicableStatuses: ['TRANSITION'],
   region: 'BURGOS',
   tasks: [

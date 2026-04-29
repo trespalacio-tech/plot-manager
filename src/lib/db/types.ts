@@ -2,7 +2,23 @@ import type { Geometry, Point, Polygon } from 'geojson';
 
 export type ParcelStatus = 'DESIGN' | 'TRANSITION' | 'REGENERATIVE';
 
-export type CropType = 'FRUIT_TREE' | 'VINEYARD' | 'MIXED';
+export type CropType = 'FRUIT_TREE' | 'NUT_TREE' | 'VINEYARD' | 'MIXED';
+
+/**
+ * Especie principal de la parcela cuando un mismo CropType abarca varias
+ * (NUT_TREE → almendro/nogal/avellano/pistacho, FRUIT_TREE → manzano/peral/...).
+ * Se usa para que el motor de playbooks aplique solo el plan adecuado.
+ */
+export type PrimarySpecies =
+  | 'almendro'
+  | 'nogal'
+  | 'avellano'
+  | 'pistacho'
+  | 'manzano'
+  | 'peral'
+  | 'cerezo'
+  | 'membrillero'
+  | 'tempranillo';
 
 export type Aspect =
   | 'N'
@@ -81,6 +97,7 @@ export interface Parcel extends WithId {
   status: ParcelStatus;
   statusChangedAt: Date;
   cropType: CropType;
+  primarySpecies?: PrimarySpecies;
   plantingYear?: number;
   spacingRowM?: number;
   spacingPlantM?: number;

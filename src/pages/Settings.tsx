@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { APP_VERSION } from '@/lib/version';
 import { NotificationsSettingsCard } from '@/components/coach/NotificationsSettingsCard';
+import { InstallCard } from '@/components/pwa/InstallCard';
 import {
   AUTO_BACKUP_LIMIT,
   type AutoBackupRecord,
@@ -132,6 +133,8 @@ export function SettingsPage(): JSX.Element {
       subtitle="Privacidad, copia de seguridad y acerca de."
     >
       <div className="grid gap-4">
+        <InstallCard />
+
         <NotificationsSettingsCard />
 
         <Card>

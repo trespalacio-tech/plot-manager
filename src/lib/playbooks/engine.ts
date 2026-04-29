@@ -24,8 +24,9 @@ export function applicablePlaybooks(
   return playbooks.filter(
     (p) =>
       matchesCrop(parcel, p) &&
+      matchesSpecies(parcel, p) &&
       p.applicableStatuses.includes(parcel.status) &&
-      (p.region === 'BURGOS'),
+      p.region === 'BURGOS',
   );
 }
 
@@ -33,6 +34,15 @@ function matchesCrop(parcel: Parcel, playbook: Playbook): boolean {
   if (playbook.cropType === parcel.cropType) return true;
   if (parcel.cropType === 'MIXED') return true;
   return false;
+}
+
+function matchesSpecies(parcel: Parcel, playbook: Playbook): boolean {
+  // Sin restricción de especie en el playbook → vale para todas.
+  if (!playbook.species) return true;
+  // Parcela sin especie declarada → no podemos confirmar; aplicamos
+  // por compatibilidad hacia atrás (parcelas creadas antes de NUT_TREE).
+  if (!parcel.primarySpecies) return true;
+  return parcel.primarySpecies === playbook.species;
 }
 
 export async function evaluatePlaybooks(

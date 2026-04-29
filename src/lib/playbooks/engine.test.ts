@@ -69,7 +69,7 @@ describe('applicablePlaybooks', () => {
     expect(out.map((p) => p.id)).toEqual(['vine-tempranillo-regenerative-burgos']);
   });
 
-  it('MIXED hereda playbooks de ambos cultivos', async () => {
+  it('MIXED hereda playbooks de todos los cultivos del estado', async () => {
     const farm = await createFarm({ name: 'F', municipality: 'Burgos', province: 'Burgos' });
     const parcel = await createParcel({
       farmId: farm.id,
@@ -81,9 +81,43 @@ describe('applicablePlaybooks', () => {
     });
     const out = applicablePlaybooks(parcel);
     expect(out.map((p) => p.id).sort()).toEqual([
+      'almond-burgos',
       'apple-transition-burgos',
+      'hazelnut-burgos',
+      'pistachio-burgos',
       'vine-tempranillo-transition-burgos',
+      'walnut-burgos',
     ]);
+  });
+
+  it('NUT_TREE con primarySpecies filtra al playbook correspondiente', async () => {
+    const farm = await createFarm({ name: 'F', municipality: 'Burgos', province: 'Burgos' });
+    const parcel = await createParcel({
+      farmId: farm.id,
+      name: 'Almendros',
+      areaHa: 1,
+      status: 'TRANSITION',
+      cropType: 'NUT_TREE',
+      primarySpecies: 'almendro',
+      irrigation: 'RAINFED',
+    });
+    const out = applicablePlaybooks(parcel);
+    expect(out.map((p) => p.id)).toEqual(['almond-burgos']);
+  });
+
+  it('NUT_TREE en DESIGN aplica el playbook común de establecimiento', async () => {
+    const farm = await createFarm({ name: 'F', municipality: 'Burgos', province: 'Burgos' });
+    const parcel = await createParcel({
+      farmId: farm.id,
+      name: 'Plantón',
+      areaHa: 0.5,
+      status: 'DESIGN',
+      cropType: 'NUT_TREE',
+      primarySpecies: 'pistacho',
+      irrigation: 'DRIP',
+    });
+    const out = applicablePlaybooks(parcel);
+    expect(out.map((p) => p.id)).toEqual(['nut-design-burgos']);
   });
 });
 

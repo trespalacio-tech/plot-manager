@@ -25,6 +25,7 @@ const statusLabels: Record<ParcelStatus, string> = {
 
 const cropLabels: Record<CropType, string> = {
   FRUIT_TREE: 'Frutal',
+  NUT_TREE: 'Frutos secos',
   VINEYARD: 'Viñedo',
   MIXED: 'Mixto',
 };

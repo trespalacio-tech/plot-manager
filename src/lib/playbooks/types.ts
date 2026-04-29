@@ -2,6 +2,7 @@ import type {
   CropType,
   OperationType,
   ParcelStatus,
+  PrimarySpecies,
   TaskPriority,
 } from '@/lib/db/types';
 
@@ -22,7 +23,12 @@ export interface Playbook {
   title: string;
   description: string;
   cropType: CropType;
-  species?: string;
+  /**
+   * Si está definido, el playbook solo se aplica a parcelas cuya
+   * `primarySpecies` coincida. Permite tener varios playbooks bajo el
+   * mismo cropType (p. ej. NUT_TREE → almendro vs nogal vs pistacho).
+   */
+  species?: PrimarySpecies;
   applicableStatuses: ParcelStatus[];
   region: 'BURGOS';
   tasks: PlaybookTask[];

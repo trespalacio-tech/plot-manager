@@ -1,7 +1,18 @@
 import { z } from 'zod';
 
 export const parcelStatusEnum = z.enum(['DESIGN', 'TRANSITION', 'REGENERATIVE']);
-export const cropTypeEnum = z.enum(['FRUIT_TREE', 'VINEYARD', 'MIXED']);
+export const cropTypeEnum = z.enum(['FRUIT_TREE', 'NUT_TREE', 'VINEYARD', 'MIXED']);
+export const primarySpeciesEnum = z.enum([
+  'almendro',
+  'nogal',
+  'avellano',
+  'pistacho',
+  'manzano',
+  'peral',
+  'cerezo',
+  'membrillero',
+  'tempranillo',
+]);
 export const irrigationEnum = z.enum([
   'RAINFED',
   'DRIP',
@@ -28,6 +39,7 @@ export const parcelSchema = z.object({
   aspect: aspectEnum.optional(),
   status: parcelStatusEnum,
   cropType: cropTypeEnum,
+  primarySpecies: primarySpeciesEnum.optional(),
   plantingYear: z.number().int().min(1900).max(2100).optional(),
   spacingRowM: z.number().positive().max(50).optional(),
   spacingPlantM: z.number().positive().max(50).optional(),

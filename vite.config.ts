@@ -3,8 +3,10 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { fileURLToPath, URL } from 'node:url';
 
+const APP_BASE = process.env.BASE_URL ?? '/';
+
 export default defineConfig({
-  base: process.env.BASE_URL ?? '/',
+  base: APP_BASE,
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
@@ -20,6 +22,7 @@ export default defineConfig({
         'apple-touch-icon-180x180.png',
       ],
       manifest: {
+        id: APP_BASE,
         name: 'Fincas — Gestión regenerativa',
         short_name: 'Fincas',
         description:
@@ -27,9 +30,10 @@ export default defineConfig({
         theme_color: '#2f6b3a',
         background_color: '#ffffff',
         display: 'standalone',
+        orientation: 'portrait',
         lang: 'es',
-        start_url: '.',
-        scope: '.',
+        start_url: APP_BASE,
+        scope: APP_BASE,
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },

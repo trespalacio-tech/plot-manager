@@ -7,7 +7,7 @@ export const vineTempranilloDesign: Playbook = {
   description:
     'Planificación de plantación: análisis, portainjerto según caliza activa, marco, orientación y estructura hídrica.',
   cropType: 'VINEYARD',
-  species: 'Tempranillo',
+  species: 'tempranillo',
   applicableStatuses: ['DESIGN'],
   region: 'BURGOS',
   tasks: [
