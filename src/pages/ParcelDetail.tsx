@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { SoilPanel } from '@/components/soil/SoilPanel';
 import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
 import { DiagnoseWizardDialog } from '@/components/diagnose/DiagnoseWizardDialog';
+import { YearlyPlanDialog } from '@/components/parcels/YearlyPlanDialog';
 import { getFarm, getParcel, listParcels } from '@/lib/db/repos';
 import type { CropType, IrrigationType, ParcelStatus } from '@/lib/db/types';
 import type { DiagnoseHypothesis } from '@/lib/diagnose/types';
@@ -49,6 +50,7 @@ export function ParcelDetailPage(): JSX.Element {
   );
   const parcels = useLiveQuery(() => listParcels(), []);
   const [diagnoseOpen, setDiagnoseOpen] = useState(false);
+  const [yearlyPlanOpen, setYearlyPlanOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
   const [logPrefill, setLogPrefill] = useState<
     { title: string; description: string } | undefined
@@ -70,9 +72,14 @@ export function ParcelDetailPage(): JSX.Element {
         <Link to={`/parcelas/${farmId}`} className="text-sm text-brand-700 hover:underline">
           ← Volver a {farm.name}
         </Link>
-        <Button variant="outline" size="sm" onClick={() => setDiagnoseOpen(true)}>
-          Veo algo raro
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setYearlyPlanOpen(true)}>
+            Plan anual
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setDiagnoseOpen(true)}>
+            Veo algo raro
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="suelo">
@@ -121,6 +128,13 @@ export function ParcelDetailPage(): JSX.Element {
           <SoilPanel parcelId={parcel.id} cropType={parcel.cropType} />
         </TabsContent>
       </Tabs>
+
+      <YearlyPlanDialog
+        open={yearlyPlanOpen}
+        onOpenChange={setYearlyPlanOpen}
+        parcel={parcel}
+        farm={farm}
+      />
 
       <DiagnoseWizardDialog
         open={diagnoseOpen}
