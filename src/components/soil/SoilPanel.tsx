@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SoilSampleDialog } from './SoilSampleDialog';
+import { useConfirm } from '@/components/ui/confirm';
 import {
   deleteSoilRecord,
   listSoilRecordsByParcel,
@@ -57,6 +58,7 @@ export function SoilPanel({ parcelId, cropType }: Props): JSX.Element {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SoilRecord | undefined>(undefined);
   const [chartParam, setChartParam] = useState<string>('organicMatterPct');
+  const confirm = useConfirm();
 
   const records = useLiveQuery(
     () => listSoilRecordsByParcel(parcelId),
@@ -103,7 +105,13 @@ export function SoilPanel({ parcelId, cropType }: Props): JSX.Element {
   };
 
   const onDelete = async (r: SoilRecord) => {
-    if (!confirm(`¿Borrar el análisis del ${formatDate(r.sample.samplingDate)}?`)) return;
+    const ok = await confirm({
+      title: `Borrar el análisis del ${formatDate(r.sample.samplingDate)}`,
+      description: 'Se borrarán también los resultados de los parámetros analizados.',
+      confirmText: 'Borrar análisis',
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteSoilRecord(r.sample.id);
   };
 

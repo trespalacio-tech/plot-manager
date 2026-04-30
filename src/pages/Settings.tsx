@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { APP_VERSION } from '@/lib/version';
 import { NotificationsSettingsCard } from '@/components/coach/NotificationsSettingsCard';
 import { InstallCard } from '@/components/pwa/InstallCard';
+import { useConfirm } from '@/components/ui/confirm';
 import {
   AUTO_BACKUP_LIMIT,
   type AutoBackupRecord,
@@ -29,6 +30,7 @@ type Status =
   | { kind: 'error'; message: string };
 
 export function SettingsPage(): JSX.Element {
+  const confirm = useConfirm();
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [includeBlobs, setIncludeBlobs] = useState(true);
   const [pending, setPending] = useState<{
@@ -86,12 +88,14 @@ export function SettingsPage(): JSX.Element {
 
   async function onConfirmRestore() {
     if (!pending) return;
-    if (
-      !window.confirm(
-        'Vas a sustituir TODOS los datos locales por los de la copia. ¿Continuar?',
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: 'Restaurar copia: vas a sobrescribir tus datos',
+      description:
+        'Se sustituirán TODOS los datos locales por los de la copia. La operación no es reversible si no tienes otra copia previa.',
+      confirmText: 'Sí, restaurar',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       setBusy('Restaurando…');
       const result = await restoreSnapshot(pending.snapshot);
@@ -103,12 +107,14 @@ export function SettingsPage(): JSX.Element {
   }
 
   async function onRestoreAuto(record: AutoBackupRecord) {
-    if (
-      !window.confirm(
-        `Restaurar el snapshot del ${formatDateTime(record.createdAt)} sustituirá todos los datos. ¿Continuar?`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Restaurar snapshot del ${formatDateTime(record.createdAt)}`,
+      description:
+        'Sustituirá todos los datos locales por los de este snapshot. No se puede deshacer.',
+      confirmText: 'Restaurar',
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       setBusy('Restaurando snapshot…');
       const result = await restoreSnapshot(record.payload);
@@ -119,7 +125,13 @@ export function SettingsPage(): JSX.Element {
   }
 
   async function onDeleteAuto(record: AutoBackupRecord) {
-    if (!window.confirm('¿Borrar este snapshot del historial?')) return;
+    const ok = await confirm({
+      title: 'Borrar snapshot del historial',
+      description: `Se eliminará el snapshot del ${formatDateTime(record.createdAt)} (${record.appVersion}).`,
+      confirmText: 'Borrar',
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteAutoBackup(record.id);
   }
 

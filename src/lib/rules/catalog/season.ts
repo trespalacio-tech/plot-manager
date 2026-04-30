@@ -1,11 +1,12 @@
 import type { Proposal, Rule, RuleContext } from '../types';
+import { isTreeCrop, isVineCrop } from '@/lib/db/cropFamilies';
 
 function isFruit(ctx: RuleContext): boolean {
-  return ctx.parcel.cropType === 'FRUIT_TREE' || ctx.parcel.cropType === 'MIXED';
+  return isTreeCrop(ctx.parcel.cropType);
 }
 
 function isVineyard(ctx: RuleContext): boolean {
-  return ctx.parcel.cropType === 'VINEYARD' || ctx.parcel.cropType === 'MIXED';
+  return isVineCrop(ctx.parcel.cropType);
 }
 
 export const seasonWinterPheromones: Rule = {

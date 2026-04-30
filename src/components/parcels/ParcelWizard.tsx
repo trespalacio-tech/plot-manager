@@ -189,7 +189,7 @@ export function ParcelWizard({
 
   const goNext = async () => {
     if (step === 1) {
-      const ok = await trigger(['name', 'status', 'cropType']);
+      const ok = await trigger(['name', 'status', 'cropType', 'primarySpecies']);
       if (!ok) return;
     }
     if (step === 2) {
@@ -281,7 +281,12 @@ export function ParcelWizard({
               </div>
               {speciesOptions && (
                 <div className="grid gap-1.5">
-                  <Label>Especie principal</Label>
+                  <Label>
+                    Especie principal
+                    {cropType === 'NUT_TREE' && (
+                      <span className="ml-1 text-red-600">*</span>
+                    )}
+                  </Label>
                   <Select
                     value={primarySpecies ?? ''}
                     onValueChange={(v) =>
@@ -301,6 +306,11 @@ export function ParcelWizard({
                       ))}
                     </SelectContent>
                   </Select>
+                  {errors.primarySpecies && (
+                    <p className="text-xs text-red-600">
+                      {errors.primarySpecies.message}
+                    </p>
+                  )}
                   <p className="text-[11px] text-stone-500">
                     {cropType === 'NUT_TREE'
                       ? 'Cada fruto seco tiene un calendario y plagas distintas. Elegir la especie permite al Coach proponer solo las tareas relevantes.'

@@ -13,31 +13,23 @@ import {
 import { ParcelMap } from '@/components/map/ParcelMap';
 import { FarmDialog } from '@/components/farms/FarmDialog';
 import { ParcelWizard } from '@/components/parcels/ParcelWizard';
+import { useConfirm } from '@/components/ui/confirm';
 import {
   deleteFarm,
   deleteParcel,
   getFarm,
   listParcelsByFarm,
 } from '@/lib/db/repos';
-import type { CropType, ParcelStatus } from '@/lib/db/types';
-
-const statusLabels: Record<ParcelStatus, string> = {
-  DESIGN: 'Diseño',
-  TRANSITION: 'Transición',
-  REGENERATIVE: 'Regenerativa',
-};
-
-const cropLabels: Record<CropType, string> = {
-  FRUIT_TREE: 'Frutal',
-  NUT_TREE: 'Frutos secos',
-  VINEYARD: 'Viñedo',
-  MIXED: 'Mixto',
-};
+import {
+  CROP_LABELS as cropLabels,
+  PARCEL_STATUS_LABELS as statusLabels,
+} from '@/lib/db/labels';
 
 export function FarmDetailPage(): JSX.Element {
   const { farmId } = useParams<{ farmId: string }>();
   const [editFarmOpen, setEditFarmOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const confirm = useConfirm();
 
   const farm = useLiveQuery(() => (farmId ? getFarm(farmId) : undefined), [farmId]);
   const parcels = useLiveQuery(
@@ -60,12 +52,14 @@ export function FarmDetailPage(): JSX.Element {
     parcels?.map((p) => ({ id: p.id, name: p.name, geometry: p.geometry })) ?? [];
 
   const onDeleteFarm = async () => {
-    if (
-      !confirm(
-        `¿Borrar la finca «${farm.name}» y todas sus parcelas? Esta acción no se puede deshacer.`,
-      )
-    )
-      return;
+    const ok = await confirm({
+      title: `Borrar la finca «${farm.name}»`,
+      description:
+        'Se borrarán también todas sus parcelas y sus datos asociados. Esta acción no se puede deshacer.',
+      confirmText: 'Borrar finca',
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteFarm(farm.id);
     window.location.hash = '#/parcelas';
   };
@@ -142,7 +136,14 @@ export function FarmDetailPage(): JSX.Element {
                       variant="ghost"
                       size="sm"
                       onClick={async () => {
-                        if (!confirm(`¿Borrar la parcela «${p.name}»?`)) return;
+                        const ok = await confirm({
+                          title: `Borrar la parcela «${p.name}»`,
+                          description:
+                            'Se borrarán sus análisis de suelo y tareas asociadas.',
+                          confirmText: 'Borrar parcela',
+                          destructive: true,
+                        });
+                        if (!ok) return;
                         await deleteParcel(p.id);
                       }}
                     >

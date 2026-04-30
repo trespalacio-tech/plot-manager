@@ -11,6 +11,7 @@
 const COACH_PERIODIC_TAG = 'coach-tasks-check';
 const COACH_THROTTLE_MS = 12 * 60 * 60 * 1000;
 const COACH_MAX_PER_RUN = 3;
+const COACH_MAX_OVERDUE_DAYS = 30;
 const FINCAS_DB_NAME = 'fincas';
 const COACH_SW_DB_NAME = 'coach-sw';
 const COACH_SW_DB_VERSION = 1;
@@ -22,7 +23,21 @@ function openIdb(name, version, upgrade) {
     if (upgrade) {
       req.onupgradeneeded = () => upgrade(req.result);
     }
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Si la página (Dexie) hace upgrade de schema mientras tenemos la
+      // conexión abierta, debemos cerrarla inmediatamente para no
+      // bloquear el upgrade. La próxima invocación del SW reabrirá
+      // contra la nueva versión.
+      db.onversionchange = () => {
+        try {
+          db.close();
+        } catch (_e) {
+          /* noop */
+        }
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
     req.onblocked = () => reject(new Error('idb-blocked'));
   });
@@ -78,9 +93,23 @@ async function writeLastNotified(updated) {
   }
 }
 
+async function dbExists(name) {
+  // `databases()` no está en Safari < 14: si falta, asumimos que existe
+  // y dejamos que openIdb maneje el resto.
+  if (typeof indexedDB.databases !== 'function') return true;
+  try {
+    const list = await indexedDB.databases();
+    return list.some((d) => d.name === name);
+  } catch (_e) {
+    return true;
+  }
+}
+
 async function readAllTasks() {
-  // Open without forcing a version: we only read. If the DB doesn't exist yet,
-  // IndexedDB creates it empty (which is fine — there are no tasks).
+  // Si la página nunca ha llegado a inicializar la BD (primera visita
+  // con sync periódico ya programado) NO la creamos vacía: dejaríamos
+  // a Dexie con una versión 1 nuestra que confundiría su upgrade.
+  if (!(await dbExists(FINCAS_DB_NAME))) return [];
   const db = await openIdb(FINCAS_DB_NAME);
   try {
     if (!db.objectStoreNames.contains('tasks')) return [];
@@ -138,11 +167,14 @@ function describe(task, now) {
 
 function pickTasks(tasks, lastNotified, now) {
   const cutoff = now.getTime() - COACH_THROTTLE_MS;
+  const overdueAgeCutoff = now.getTime() - COACH_MAX_OVERDUE_DAYS * 86400000;
   const eligible = [];
   for (const t of tasks) {
     if (t.status !== 'PENDING' && t.status !== 'IN_PROGRESS') continue;
     const u = urgency(t, now);
     if (u !== 'OVERDUE' && u !== 'TODAY') continue;
+    const anchor = t.dueDate || t.scheduledFor;
+    if (u === 'OVERDUE' && anchor && new Date(anchor).getTime() < overdueAgeCutoff) continue;
     const last = lastNotified[t.id];
     if (last && last > cutoff) continue;
     eligible.push({ task: t, urgency: u });

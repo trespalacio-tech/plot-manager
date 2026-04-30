@@ -1,4 +1,5 @@
 import type { Proposal, Rule, RuleContext } from '../types';
+import { isTreeCrop } from '@/lib/db/cropFamilies';
 
 function analysisAgeDays(ctx: RuleContext): number | undefined {
   if (!ctx.latestSoilSample) return undefined;
@@ -159,7 +160,7 @@ export const soilActiveLimestoneHigh: Rule = {
     const a = ctx.latestSoilAnalysis;
     if (!a || a.activeLimestonePct === undefined) return [];
     if (a.activeLimestonePct <= 12) return [];
-    const isFruit = ctx.parcel.cropType === 'FRUIT_TREE' || ctx.parcel.cropType === 'MIXED';
+    const isFruit = isTreeCrop(ctx.parcel.cropType);
     return [
       {
         kind: 'TASK',

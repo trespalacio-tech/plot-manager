@@ -94,4 +94,13 @@ describe('pickTasksToNotify', () => {
       pickTasksToNotify([done, dismissed, postponed], getNotificationPrefs(), NOW),
     ).toHaveLength(0);
   });
+
+  it('deja de notificar tareas atrasadas más de 30 días', () => {
+    // Lleva 45 días atrasada → no debería notificarse.
+    const stale = task({ id: 'old', dueDate: new Date('2026-03-10') });
+    // 5 días atrasada → sí.
+    const fresh = task({ id: 'new', dueDate: new Date('2026-04-19') });
+    const picked = pickTasksToNotify([stale, fresh], getNotificationPrefs(), NOW);
+    expect(picked.map((t) => t.id)).toEqual(['new']);
+  });
 });

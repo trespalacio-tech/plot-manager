@@ -15,28 +15,12 @@ import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
 import { DiagnoseWizardDialog } from '@/components/diagnose/DiagnoseWizardDialog';
 import { YearlyPlanDialog } from '@/components/parcels/YearlyPlanDialog';
 import { getFarm, getParcel, listParcels } from '@/lib/db/repos';
-import type { CropType, IrrigationType, ParcelStatus } from '@/lib/db/types';
 import type { DiagnoseHypothesis } from '@/lib/diagnose/types';
-
-const statusLabels: Record<ParcelStatus, string> = {
-  DESIGN: 'Diseño',
-  TRANSITION: 'Transición',
-  REGENERATIVE: 'Regenerativa',
-};
-
-const cropLabels: Record<CropType, string> = {
-  FRUIT_TREE: 'Frutal',
-  NUT_TREE: 'Frutos secos',
-  VINEYARD: 'Viñedo',
-  MIXED: 'Mixto',
-};
-
-const irrigationLabels: Record<IrrigationType, string> = {
-  RAINFED: 'Secano',
-  DRIP: 'Goteo',
-  MICROSPRINKLER: 'Microaspersión',
-  FLOOD: 'Inundación',
-};
+import {
+  CROP_LABELS as cropLabels,
+  IRRIGATION_LABELS as irrigationLabels,
+  PARCEL_STATUS_LABELS as statusLabels,
+} from '@/lib/db/labels';
 
 export function ParcelDetailPage(): JSX.Element {
   const { farmId, parcelId } = useParams<{ farmId: string; parcelId: string }>();

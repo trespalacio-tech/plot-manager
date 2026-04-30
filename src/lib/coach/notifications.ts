@@ -5,6 +5,13 @@ import { mirrorEnabled, mirrorLastNotified } from './swSync';
 const STATE_KEY = 'coach:notifications';
 export const NOTIFY_THROTTLE_MS = 12 * 60 * 60 * 1000;
 export const MAX_NOTIFICATIONS_PER_RUN = 3;
+/**
+ * Tareas con dueDate más antigua que este umbral dejan de generar
+ * notificaciones. Evita que tareas olvidadas (no descartadas) sigan
+ * pinchando indefinidamente.
+ */
+export const NOTIFY_MAX_OVERDUE_DAYS = 30;
+const MS_DAY = 24 * 60 * 60 * 1000;
 
 export interface NotificationPrefs {
   enabled: boolean;
@@ -89,10 +96,15 @@ export function pickTasksToNotify(
   now: Date = new Date(),
 ): Task[] {
   const cutoff = now.getTime() - NOTIFY_THROTTLE_MS;
+  const overdueAgeCutoff = now.getTime() - NOTIFY_MAX_OVERDUE_DAYS * MS_DAY;
   const eligible = tasks.filter((t) => {
     if (t.status !== 'PENDING' && t.status !== 'IN_PROGRESS') return false;
     const u = taskUrgency(t, now);
     if (u !== 'OVERDUE' && u !== 'TODAY') return false;
+    // Cap de antigüedad: si una tarea OVERDUE lleva > 30 días sin
+    // resolverse, dejamos de notificarla (sigue visible en Hoy).
+    const anchor = t.dueDate ?? t.scheduledFor;
+    if (u === 'OVERDUE' && anchor && anchor.getTime() < overdueAgeCutoff) return false;
     const last = prefs.lastNotifiedAt[t.id];
     if (last && last > cutoff) return false;
     return true;

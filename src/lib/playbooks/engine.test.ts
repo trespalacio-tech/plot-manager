@@ -9,7 +9,7 @@ import {
 } from '@/lib/db/repos';
 import { applicablePlaybooks, evaluatePlaybooks } from './engine';
 import { ALL_PLAYBOOKS } from './catalog';
-import { doy, doyInWindow, nextWindowDates } from './types';
+import { dateFromDoy, doy, doyInWindow, nextWindowDates } from './types';
 
 beforeEach(() => {
   resetDbForTests();
@@ -224,5 +224,37 @@ describe('evaluatePlaybooks', () => {
     expect(doy(1, 1)).toBe(1);
     expect(doy(3, 1)).toBe(60);
     expect(doy(12, 31)).toBe(365);
+  });
+});
+
+describe('dateFromDoy', () => {
+  it('es la inversa de doy(): mismas fechas calendario en año normal', () => {
+    const d = dateFromDoy(2026, doy(3, 1));
+    expect(d.getMonth()).toBe(2); // marzo
+    expect(d.getDate()).toBe(1);
+  });
+
+  it('mantiene la fecha calendario en años bisiestos (no se desplaza un día)', () => {
+    // 2028 es bisiesto: con la implementación naïve `new Date(year, 0, 60)`
+    // saldría 29-feb. Queremos que doy(3,1) sea SIEMPRE 1-marzo.
+    const marzo = dateFromDoy(2028, doy(3, 1));
+    expect(marzo.getMonth()).toBe(2);
+    expect(marzo.getDate()).toBe(1);
+
+    const finAgosto = dateFromDoy(2028, doy(8, 31));
+    expect(finAgosto.getMonth()).toBe(7); // agosto
+    expect(finAgosto.getDate()).toBe(31);
+  });
+
+  it('mapea correctamente los bordes de mes', () => {
+    const ene31 = dateFromDoy(2026, doy(1, 31));
+    expect(ene31.getMonth()).toBe(0);
+    expect(ene31.getDate()).toBe(31);
+    const feb28 = dateFromDoy(2026, doy(2, 28));
+    expect(feb28.getMonth()).toBe(1);
+    expect(feb28.getDate()).toBe(28);
+    const dic31 = dateFromDoy(2026, doy(12, 31));
+    expect(dic31.getMonth()).toBe(11);
+    expect(dic31.getDate()).toBe(31);
   });
 });

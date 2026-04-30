@@ -1,6 +1,7 @@
 import type { FieldLogEntry, Farm, Parcel } from '@/lib/db/types';
 import { OPERATION_LABELS } from './templates';
 import { summarizeEntries } from '@/lib/db/repos';
+import { PDF_BASE_STYLES } from './pdfStyles';
 
 export interface PdfReportOptions {
   parcels?: Parcel[];
@@ -86,53 +87,11 @@ export function buildNotebookHtml(
 <meta charset="utf-8" />
 <title>${escapeHtml(title)}</title>
 <style>
-  @page { size: A4; margin: 16mm; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    color: #0f172a;
-    margin: 0;
-    padding: 24px;
-    font-size: 12px;
-    line-height: 1.4;
-  }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  h2 { font-size: 14px; margin: 24px 0 8px; }
-  .meta { color: #475569; font-size: 11px; margin-bottom: 16px; }
-  .summary {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-    margin: 12px 0 16px;
-  }
-  .stat {
-    border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px;
-  }
-  .stat .label { font-size: 10px; text-transform: uppercase; color: #64748b; letter-spacing: .04em; }
-  .stat .value { font-size: 16px; font-weight: 600; color: #0f172a; }
-  table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  thead th {
-    background: #f1f5f9; text-align: left; padding: 6px 8px;
-    border-bottom: 1px solid #94a3b8; font-weight: 600;
-  }
-  tbody td {
-    padding: 6px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top;
-  }
-  tbody tr.voided { color: #94a3b8; text-decoration: line-through; }
-  .badge {
-    display: inline-block; padding: 1px 6px; border-radius: 9999px;
-    font-size: 10px; margin-left: 6px; vertical-align: middle;
-  }
-  .badge-void { background: #fee2e2; color: #b91c1c; }
-  .desc { color: #475569; margin-top: 2px; }
-  .nowrap { white-space: nowrap; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .footer { margin-top: 24px; color: #64748b; font-size: 10px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-  .farms-list { color: #475569; font-size: 11px; }
+  ${PDF_BASE_STYLES}
+  .summary { grid-template-columns: repeat(4, 1fr); }
+  .desc { color: #5a5246; margin-top: 2px; }
+  .farms-list { color: #5a5246; font-size: 11px; }
   ul { margin: 4px 0 0 18px; padding: 0; }
-  @media print {
-    body { padding: 0; }
-    thead { display: table-header-group; }
-    tr { page-break-inside: avoid; }
-  }
 </style>
 </head>
 <body>

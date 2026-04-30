@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { installAutoBackupOnClose } from '@/lib/backup';
 import { useTaskNotifications } from '@/lib/coach/useTaskNotifications';
+import { ConfirmProvider } from '@/components/ui/confirm';
+import { ToastProvider } from '@/components/ui/toast';
 
 type Tab = {
   to: string;
@@ -33,6 +35,16 @@ const tabs: Tab[] = [
 export function AppShell(): JSX.Element {
   useEffect(() => installAutoBackupOnClose(), []);
   useTaskNotifications();
+  return (
+    <ToastProvider>
+      <ConfirmProvider>
+        <AppShellInner />
+      </ConfirmProvider>
+    </ToastProvider>
+  );
+}
+
+function AppShellInner(): JSX.Element {
   return (
     <div className="flex min-h-full flex-col md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-stone-200 md:bg-bone-100">

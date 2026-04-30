@@ -35,6 +35,7 @@ import { TaskDetailDialog } from '@/components/coach/TaskDetailDialog';
 import { PostponeDialog } from '@/components/coach/PostponeDialog';
 import { NotificationsBanner } from '@/components/coach/NotificationsBanner';
 import { InstallBanner } from '@/components/pwa/InstallBanner';
+import { useToast } from '@/components/ui/toast';
 import {
   compareTasks,
   taskUrgency,
@@ -73,6 +74,7 @@ export function TodayPage(): JSX.Element {
   );
   const alerts = useLiveQuery(() => listAlerts(), []);
   const auto = useAutoCoach();
+  const toast = useToast();
 
   const [evaluating, setEvaluating] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -224,9 +226,16 @@ export function TodayPage(): JSX.Element {
   };
 
   const onDismiss = async (t: Task) => {
-    if (!confirm(`¿Descartar «${t.title}»? No volverá a aparecer para esta parcela.`)) return;
     await dismissTask(t.id);
     closeDetail();
+    toast.show({
+      title: 'Tarea descartada',
+      description: t.title,
+      action: {
+        label: 'Deshacer',
+        onClick: () => reopenTask(t.id),
+      },
+    });
   };
 
   const onReopen = async (t: Task) => {

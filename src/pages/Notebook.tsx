@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
+import { usePrompt } from '@/components/ui/confirm';
 import {
   listFarms,
   listFieldLogEntries,
@@ -46,6 +47,7 @@ function startOfPeriod(period: Period): Date | undefined {
 }
 
 export function NotebookPage(): JSX.Element {
+  const prompt = usePrompt();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FieldLogEntry | undefined>(undefined);
   const [typeFilter, setTypeFilter] = useState<OperationType | 'ALL'>('ALL');
@@ -94,8 +96,16 @@ export function NotebookPage(): JSX.Element {
   };
 
   const onVoid = async (e: FieldLogEntry) => {
-    const reason = prompt(`Motivo para anular «${e.title}»:`);
-    if (!reason?.trim()) return;
+    const reason = await prompt({
+      title: `Anular «${e.title}»`,
+      description:
+        'La entrada se conserva en el historial con esta razón. No se borra para mantener trazabilidad agronómica.',
+      inputLabel: 'Motivo de anulación',
+      placeholder: 'p. ej. error de tipo, duplicada, fecha incorrecta…',
+      confirmText: 'Anular',
+      required: true,
+    });
+    if (!reason) return;
     await voidFieldLogEntry(e.id, reason);
   };
 

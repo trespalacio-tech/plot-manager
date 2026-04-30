@@ -32,6 +32,7 @@ import { TaskDetailDialog } from '@/components/coach/TaskDetailDialog';
 import { PostponeDialog } from '@/components/coach/PostponeDialog';
 import { CoachWizardDialog } from '@/components/coach/CoachWizardDialog';
 import { FieldLogDialog } from '@/components/notebook/FieldLogDialog';
+import { useToast } from '@/components/ui/toast';
 import type { CoachWizard } from '@/lib/coach/wizards';
 
 type View = 'MONTH' | 'WEEK';
@@ -112,6 +113,7 @@ export function CalendarPage(): JSX.Element {
   const parcels = useLiveQuery(() => listParcels(), []);
   const tasks = useLiveQuery(() => listTasks(), []);
   const auto = useAutoCoach();
+  const toast = useToast();
   const [recalculating, setRecalculating] = useState(false);
 
   const [detailOpen, setDetailOpen] = useState(false);
@@ -284,9 +286,16 @@ export function CalendarPage(): JSX.Element {
   };
 
   const onDismiss = async (t: Task) => {
-    if (!confirm(`¿Descartar «${t.title}»? No volverá a aparecer para esta parcela.`)) return;
     await dismissTask(t.id);
     closeDetail();
+    toast.show({
+      title: 'Tarea descartada',
+      description: t.title,
+      action: {
+        label: 'Deshacer',
+        onClick: () => reopenTask(t.id),
+      },
+    });
   };
 
   const onReopen = async (t: Task) => {

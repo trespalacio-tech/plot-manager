@@ -1,4 +1,5 @@
 import type { CropType, OperationType, SoilAnalysis } from '@/lib/db/types';
+import { isTreeCrop } from '@/lib/db/cropFamilies';
 
 export type InterpretationLevel = 'OK' | 'WATCH' | 'ACTION';
 
@@ -127,7 +128,7 @@ function interpretCEC(a: SoilAnalysis, out: ParamInterpretation[]) {
 function interpretActiveLimestone(a: SoilAnalysis, out: ParamInterpretation[], ctx: InterpretationContext) {
   const al = a.activeLimestonePct;
   if (al === undefined) return;
-  const isFruit = ctx.cropType === 'FRUIT_TREE' || ctx.cropType === 'MIXED';
+  const isFruit = isTreeCrop(ctx.cropType);
   if (al < 5) {
     pushOK(out, 'activeLimestonePct', 'Caliza activa', al, '%', 'baja', 'Caliza activa baja: sin riesgo de clorosis por carbonatos.');
   } else if (al < 9) {
@@ -304,7 +305,7 @@ function buildRecommendations(
 
   const al = byKey.get('activeLimestonePct');
   if (al && al.level === 'ACTION') {
-    const isFruit = ctx.cropType === 'FRUIT_TREE' || ctx.cropType === 'MIXED';
+    const isFruit = isTreeCrop(ctx.cropType);
     recs.push({
       id: 'rec-lime-rootstock',
       title: isFruit
