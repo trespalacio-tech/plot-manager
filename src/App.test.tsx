@@ -73,9 +73,17 @@ describe('AppShell', () => {
     }
   });
 
-  it('la pantalla Ajustes declara almacenamiento local y sin servidor', () => {
+  it('la pantalla Ajustes declara almacenamiento local y modo sin servidor', async () => {
     renderAt('/ajustes');
-    expect(screen.getByText(/IndexedDB local/i)).toBeInTheDocument();
-    expect(screen.getByText(/sin servidor/i)).toBeInTheDocument();
+    // Anclamos en los <dt> de la sección "Acerca de" — son únicos en
+    // la página y resilientes a copy nuevo en otras tarjetas.
+    const storageTerm = await screen.findByText('Almacenamiento', {
+      selector: 'dt',
+    });
+    expect(storageTerm.nextElementSibling?.textContent).toMatch(/IndexedDB/i);
+    const syncTerm = screen.getByText('Sincronización', { selector: 'dt' });
+    expect(syncTerm.nextElementSibling?.textContent?.toLowerCase()).toContain(
+      'sin servidor',
+    );
   });
 });

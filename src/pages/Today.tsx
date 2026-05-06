@@ -139,6 +139,23 @@ export function TodayPage(): JSX.Element {
     return c;
   }, [filteredTasks]);
 
+  // Conteo global (todas las parcelas) para que el usuario no pierda
+  // la perspectiva al filtrar por una sola parcela.
+  const globalCounts = useMemo(() => {
+    const c: Record<TaskUrgency, number> = {
+      OVERDUE: 0,
+      TODAY: 0,
+      SOON: 0,
+      THIS_WEEK: 0,
+      UPCOMING: 0,
+      LATER: 0,
+    };
+    allTasks.forEach((t) => {
+      c[taskUrgency(t)] += 1;
+    });
+    return c;
+  }, [allTasks]);
+
   const parcelsWithTasks = useMemo(() => {
     const ids = new Set<string>();
     let hasUnassigned = false;
@@ -284,7 +301,14 @@ export function TodayPage(): JSX.Element {
         )}
       </div>
 
-      <SummaryCard counts={counts} actionable={actionableCount} total={filteredTasks.length} />
+      <SummaryCard
+        counts={counts}
+        actionable={actionableCount}
+        total={filteredTasks.length}
+        filtered={parcelFilter !== 'ALL'}
+        globalCounts={globalCounts}
+        globalTotal={allTasks.length}
+      />
 
       {(parcelsWithTasks.parcels.length > 1 || parcelsWithTasks.hasUnassigned) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -496,13 +520,22 @@ function SummaryCard({
   counts,
   actionable,
   total,
+  filtered,
+  globalCounts,
+  globalTotal,
 }: {
   counts: Record<TaskUrgency, number>;
   actionable: number;
   total: number;
+  filtered: boolean;
+  globalCounts: Record<TaskUrgency, number>;
+  globalTotal: number;
 }): JSX.Element {
   const headline = (() => {
-    if (total === 0) return 'No hay tareas pendientes para esta vista.';
+    if (total === 0) {
+      if (filtered) return 'No hay tareas para la parcela filtrada.';
+      return 'No hay tareas pendientes.';
+    }
     if (counts.OVERDUE > 0) {
       return `Hay ${counts.OVERDUE} tarea${counts.OVERDUE === 1 ? '' : 's'} atrasada${counts.OVERDUE === 1 ? '' : 's'}: empieza por ahí.`;
     }
@@ -517,6 +550,9 @@ function SummaryCard({
     }
     return 'Sin urgencias inmediatas. Mira más adelante en el calendario.';
   })();
+
+  const globalActionable =
+    globalCounts.OVERDUE + globalCounts.TODAY + globalCounts.SOON;
 
   return (
     <Card>
@@ -538,10 +574,20 @@ function SummaryCard({
             })}
           </div>
         )}
-        {total > 0 && actionable === 0 && (
+        {total > 0 && actionable === 0 && !filtered && (
           <p className="mt-2 text-xs text-slate-500">
             Nada urgente esta semana — buena ventana para planificar o adelantar trabajo
             preventivo.
+          </p>
+        )}
+        {filtered && globalTotal > 0 && (
+          <p className="mt-2 text-xs text-stone-500">
+            En todas las parcelas: {globalTotal} pendientes
+            {globalActionable > 0 && (
+              <>
+                {' '}· <span className="font-medium text-stone-700">{globalActionable}</span> urgentes
+              </>
+            )}.
           </p>
         )}
       </CardContent>

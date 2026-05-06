@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   BookOpen,
   Calendar as CalendarIcon,
   GraduationCap,
   LayoutGrid,
   Library,
+  MoreHorizontal,
   Settings as SettingsIcon,
   Sun,
   Sprout,
@@ -15,6 +16,13 @@ import { installAutoBackupOnClose } from '@/lib/backup';
 import { useTaskNotifications } from '@/lib/coach/useTaskNotifications';
 import { ConfirmProvider } from '@/components/ui/confirm';
 import { ToastProvider } from '@/components/ui/toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 type Tab = {
   to: string;
@@ -22,15 +30,21 @@ type Tab = {
   Icon: LucideIcon;
 };
 
-const tabs: Tab[] = [
+// Las 4 primeras viven en el bottom nav (uso diario). Las 3 últimas
+// caben en un menú "Más" para no apretar 7 iconos en pantallas de 360px.
+// En desktop el sidebar las muestra todas.
+const PRIMARY_TABS: Tab[] = [
   { to: '/hoy', label: 'Hoy', Icon: Sun },
   { to: '/cuaderno', label: 'Cuaderno', Icon: BookOpen },
   { to: '/parcelas', label: 'Parcelas', Icon: LayoutGrid },
   { to: '/calendario', label: 'Calendario', Icon: CalendarIcon },
+];
+const SECONDARY_TABS: Tab[] = [
   { to: '/aprender', label: 'Aprender', Icon: GraduationCap },
   { to: '/catalogos', label: 'Catálogos', Icon: Library },
   { to: '/ajustes', label: 'Ajustes', Icon: SettingsIcon },
 ];
+const tabs: Tab[] = [...PRIMARY_TABS, ...SECONDARY_TABS];
 
 export function AppShell(): JSX.Element {
   useEffect(() => installAutoBackupOnClose(), []);
@@ -92,11 +106,23 @@ function AppShellInner(): JSX.Element {
         <Outlet />
       </main>
 
+      <MobileBottomNav />
+    </div>
+  );
+}
+
+function MobileBottomNav(): JSX.Element {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const location = useLocation();
+  const isInSecondary = SECONDARY_TABS.some((t) => location.pathname.startsWith(t.to));
+
+  return (
+    <>
       <nav
         aria-label="Navegación principal"
         className="fixed inset-x-0 bottom-0 z-10 flex border-t border-stone-200 bg-bone-50/95 backdrop-blur md:hidden"
       >
-        {tabs.map(({ to, label, Icon }) => (
+        {PRIMARY_TABS.map(({ to, label, Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -121,7 +147,55 @@ function AppShellInner(): JSX.Element {
             )}
           </NavLink>
         ))}
+        <button
+          type="button"
+          onClick={() => setMoreOpen(true)}
+          className={[
+            'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] transition-colors',
+            isInSecondary ? 'text-brand-700' : 'text-stone-500 hover:text-stone-700',
+          ].join(' ')}
+          aria-label="Más opciones"
+        >
+          {isInSecondary && (
+            <span
+              aria-hidden
+              className="absolute inset-x-4 top-0 h-0.5 rounded-b bg-brand-600"
+            />
+          )}
+          <MoreHorizontal className="h-[18px] w-[18px]" aria-hidden />
+          <span>Más</span>
+        </button>
       </nav>
-    </div>
+
+      <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Más opciones</DialogTitle>
+            <DialogDescription>Secciones secundarias.</DialogDescription>
+          </DialogHeader>
+          <ul className="grid gap-1.5">
+            {SECONDARY_TABS.map(({ to, label, Icon }) => (
+              <li key={to}>
+                <NavLink
+                  to={to}
+                  onClick={() => setMoreOpen(false)}
+                  className={({ isActive }) =>
+                    [
+                      'flex items-center gap-3 rounded-md px-3 py-3 text-sm transition-colors',
+                      isActive
+                        ? 'bg-brand-600 text-bone-50'
+                        : 'text-stone-700 hover:bg-bone-100',
+                    ].join(' ')
+                  }
+                >
+                  <Icon className="h-4 w-4" aria-hidden />
+                  {label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

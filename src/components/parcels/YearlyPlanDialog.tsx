@@ -50,6 +50,28 @@ function formatDay(d: Date): string {
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 }
 
+const YEAR_STORAGE_KEY = 'yearly-plan:lastYear';
+
+function readStoredYear(fallback: number): number {
+  try {
+    const raw = localStorage.getItem(YEAR_STORAGE_KEY);
+    if (!raw) return fallback;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 1900 || n > 2200) return fallback;
+    return n;
+  } catch {
+    return fallback;
+  }
+}
+
+function persistYear(year: number): void {
+  try {
+    localStorage.setItem(YEAR_STORAGE_KEY, String(year));
+  } catch {
+    /* localStorage lleno o deshabilitado: ignoramos */
+  }
+}
+
 export function YearlyPlanDialog({
   open,
   onOpenChange,
@@ -57,7 +79,12 @@ export function YearlyPlanDialog({
   farm,
 }: Props): JSX.Element {
   const thisYear = new Date().getFullYear();
-  const [year, setYear] = useState<number>(thisYear);
+  const [year, setYearState] = useState<number>(() => readStoredYear(thisYear));
+
+  const setYear = (next: number) => {
+    setYearState(next);
+    persistYear(next);
+  };
 
   const plan = useMemo(() => buildYearlyPlan(parcel, year), [parcel, year]);
 

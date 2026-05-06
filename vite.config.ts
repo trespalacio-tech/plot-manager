@@ -28,12 +28,16 @@ export default defineConfig({
         description:
           'App local-first para gestión regenerativa de frutales y viñedo. Sin servidor, sin cuentas, sin internet obligatorio.',
         theme_color: '#2f6b3a',
-        background_color: '#ffffff',
+        background_color: '#fbf9f5',
         display: 'standalone',
         orientation: 'portrait',
         lang: 'es',
-        start_url: APP_BASE,
+        // El query identifica accesos lanzados desde el icono PWA y
+        // permite distinguirlos en logs/diagnóstico (vivimos en hash
+        // router, así que el query no afecta a la SPA).
+        start_url: `${APP_BASE}?source=pwa`,
         scope: APP_BASE,
+        categories: ['productivity', 'utilities', 'lifestyle'],
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },

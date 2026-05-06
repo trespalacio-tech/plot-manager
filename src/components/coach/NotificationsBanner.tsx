@@ -6,6 +6,8 @@ import {
   requestNotificationPermission,
   setNotificationPrefs,
 } from '@/lib/coach/notifications';
+import { useInstallPrompt } from '@/lib/pwa/useInstallPrompt';
+import { isInstallHintDismissed } from '@/lib/pwa/install';
 
 interface Props {
   hasUrgent: boolean;
@@ -18,6 +20,16 @@ export function NotificationsBanner({ hasUrgent }: Props): JSX.Element | null {
   const [dismissed, setDismissed] = useState(initialPrefs.dismissedBanner);
   const [busy, setBusy] = useState(false);
 
+  // Cede paso al InstallBanner si éste se va a mostrar: no apilamos
+  // dos avisos a la vez en Hoy. Aparecemos cuando install ya esté
+  // resuelto (instalada, descartado o no aplica).
+  const install = useInstallPrompt();
+  const installBannerVisible =
+    !install.installed &&
+    (install.canPrompt || install.platform.isIOS) &&
+    !isInstallHintDismissed();
+
+  if (installBannerVisible) return null;
   if (!hasUrgent) return null;
   if (dismissed) return null;
   if (perm === 'unsupported' || perm === 'denied' || perm === 'granted') return null;
