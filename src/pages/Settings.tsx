@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { APP_VERSION } from '@/lib/version';
 import { NotificationsSettingsCard } from '@/components/coach/NotificationsSettingsCard';
 import { InstallCard } from '@/components/pwa/InstallCard';
+import { DevicesCard } from '@/components/sync/DevicesCard';
 import { useConfirm } from '@/components/ui/confirm';
 import {
   AUTO_BACKUP_LIMIT,
@@ -148,6 +149,8 @@ export function SettingsPage(): JSX.Element {
         <InstallCard />
 
         <NotificationsSettingsCard />
+
+        <DevicesCard />
 
         <Card>
           <CardHeader>
