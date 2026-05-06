@@ -1,6 +1,7 @@
 import { getDb } from '../db';
 import type { SoilAnalysis, SoilSample } from '../types';
 import { newId, nowStamps } from './ids';
+import { recordDelete, recordPut } from '@/lib/sync/log';
 
 export type SoilSampleInput = Omit<SoilSample, 'id' | 'createdAt' | 'updatedAt'>;
 export type SoilAnalysisInput = Omit<SoilAnalysis, 'id' | 'createdAt' | 'updatedAt' | 'sampleId'>;
@@ -58,6 +59,8 @@ export async function createSoilRecord(
     await db.soilSamples.add(sampleRow);
     await db.soilAnalyses.add(analysisRow);
   });
+  await recordPut({ table: 'soilSamples', recordId: sampleRow.id, patch: sampleRow });
+  await recordPut({ table: 'soilAnalyses', recordId: analysisRow.id, patch: analysisRow });
   return { sample: sampleRow, analysis: analysisRow };
 }
 
@@ -67,19 +70,38 @@ export async function updateSoilRecord(
   analysisPatch: SoilAnalysisPatch,
 ): Promise<void> {
   const db = getDb();
+  let analysisId: string | undefined;
+  const now = new Date();
   await db.transaction('rw', [db.soilSamples, db.soilAnalyses], async () => {
     const analysis = await db.soilAnalyses.where('sampleId').equals(sampleId).first();
     if (!analysis) throw new Error(`SoilAnalysis for sample ${sampleId} not found`);
-    const now = new Date();
+    analysisId = analysis.id;
     await db.soilSamples.update(sampleId, { ...samplePatch, updatedAt: now });
     await db.soilAnalyses.update(analysis.id, { ...analysisPatch, updatedAt: now });
   });
+  await recordPut({
+    table: 'soilSamples',
+    recordId: sampleId,
+    patch: { ...samplePatch, updatedAt: now },
+  });
+  if (analysisId) {
+    await recordPut({
+      table: 'soilAnalyses',
+      recordId: analysisId,
+      patch: { ...analysisPatch, updatedAt: now },
+    });
+  }
 }
 
 export async function deleteSoilRecord(sampleId: string): Promise<void> {
   const db = getDb();
+  let analysisId: string | undefined;
   await db.transaction('rw', [db.soilSamples, db.soilAnalyses], async () => {
+    const analysis = await db.soilAnalyses.where('sampleId').equals(sampleId).first();
+    analysisId = analysis?.id;
     await db.soilAnalyses.where('sampleId').equals(sampleId).delete();
     await db.soilSamples.delete(sampleId);
   });
+  if (analysisId) await recordDelete({ table: 'soilAnalyses', recordId: analysisId });
+  await recordDelete({ table: 'soilSamples', recordId: sampleId });
 }

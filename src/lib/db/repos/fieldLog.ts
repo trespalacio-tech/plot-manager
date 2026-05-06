@@ -1,6 +1,7 @@
 import { getDb } from '../db';
 import type { FieldLogEntry, OperationType } from '../types';
 import { newId, nowStamps } from './ids';
+import { recordPut } from '@/lib/sync/log';
 
 export type FieldLogInput = Omit<FieldLogEntry, 'id' | 'createdAt' | 'updatedAt' | 'voidedAt' | 'voidedReason'>;
 export type FieldLogPatch = Partial<Omit<FieldLogEntry, 'id' | 'createdAt' | 'voidedAt' | 'voidedReason'>>;
@@ -56,6 +57,7 @@ export async function getFieldLogEntry(id: string): Promise<FieldLogEntry | unde
 export async function createFieldLogEntry(input: FieldLogInput): Promise<FieldLogEntry> {
   const entry: FieldLogEntry = { id: newId(), ...nowStamps(), ...input };
   await getDb().fieldLogEntries.add(entry);
+  await recordPut({ table: 'fieldLogEntries', recordId: entry.id, patch: entry });
   return entry;
 }
 
@@ -64,18 +66,22 @@ export async function updateFieldLogEntry(id: string, patch: FieldLogPatch): Pro
   const existing = await db.fieldLogEntries.get(id);
   if (!existing) throw new Error(`FieldLogEntry ${id} not found`);
   if (existing.voidedAt) throw new Error('No se puede editar una entrada anulada.');
-  await db.fieldLogEntries.update(id, { ...patch, updatedAt: new Date() });
+  const final = { ...patch, updatedAt: new Date() };
+  await db.fieldLogEntries.update(id, final);
+  await recordPut({ table: 'fieldLogEntries', recordId: id, patch: final });
 }
 
 export async function voidFieldLogEntry(id: string, reason: string): Promise<void> {
   const trimmed = reason.trim();
   if (!trimmed) throw new Error('Indica un motivo para anular la entrada.');
   const now = new Date();
-  await getDb().fieldLogEntries.update(id, {
+  const patch = {
     voidedAt: now,
     voidedReason: trimmed,
     updatedAt: now,
-  });
+  };
+  await getDb().fieldLogEntries.update(id, patch);
+  await recordPut({ table: 'fieldLogEntries', recordId: id, patch });
 }
 
 export interface PeriodSummary {

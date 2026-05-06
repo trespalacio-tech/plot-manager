@@ -19,6 +19,7 @@ import type {
   TransitionPlan,
   Variety,
 } from './types';
+import type { IdentityRecord, Op, PeerRecord } from '@/lib/sync/types';
 
 export class FincasDB extends Dexie {
   farms!: Table<Farm, string>;
@@ -39,6 +40,10 @@ export class FincasDB extends Dexie {
   harvests!: Table<Harvest, string>;
   tasks!: Table<Task, string>;
   alerts!: Table<Alert, string>;
+  // Tablas del op-log (versión 2 del schema).
+  ops!: Table<Op, string>;
+  peers!: Table<PeerRecord, string>;
+  identity!: Table<IdentityRecord, 'self'>;
 
   constructor(name = 'fincas') {
     super(name);
@@ -61,6 +66,13 @@ export class FincasDB extends Dexie {
       harvests: 'id, parcelId, varietyId, date',
       tasks: 'id, parcelId, status, priority, scheduledFor, dueDate, source',
       alerts: 'id, parcelId, severity, createdAt, expiresAt',
+    });
+    // v2: añade el op-log P2P. Composite index [deviceId+seq] para que
+    // cada peer pueda pedir "todo lo que tengas desde mi último seq".
+    this.version(2).stores({
+      ops: 'id, [deviceId+seq], deviceId, seq, ts, table, recordId',
+      peers: 'id, lastSyncAt',
+      identity: 'id',
     });
   }
 }

@@ -1,6 +1,11 @@
 import { getDb } from '../db';
 import type { Task, TaskStatus } from '../types';
 import { newId, nowStamps } from './ids';
+import { recordPut } from '@/lib/sync/log';
+
+async function logUpdate(id: string, patch: object): Promise<void> {
+  await recordPut({ table: 'tasks', recordId: id, patch });
+}
 
 export type TaskInput = Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'status'> & {
   status?: TaskStatus;
@@ -57,11 +62,14 @@ export async function createTask(input: TaskInput): Promise<Task> {
     status: input.status ?? 'PENDING',
   };
   await getDb().tasks.add(task);
+  await logUpdate(task.id, task);
   return task;
 }
 
 export async function updateTask(id: string, patch: TaskPatch): Promise<void> {
-  await getDb().tasks.update(id, { ...patch, updatedAt: new Date() });
+  const final = { ...patch, updatedAt: new Date() };
+  await getDb().tasks.update(id, final);
+  await logUpdate(id, final);
 }
 
 export async function completeTask(
@@ -69,12 +77,14 @@ export async function completeTask(
   completedFieldLogEntryId?: string,
 ): Promise<void> {
   const now = new Date();
-  await getDb().tasks.update(id, {
-    status: 'DONE',
+  const patch = {
+    status: 'DONE' as TaskStatus,
     completedAt: now,
     completedFieldLogEntryId,
     updatedAt: now,
-  });
+  };
+  await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }
 
 export interface PostponeOptions {
@@ -100,6 +110,7 @@ export async function postponeTask(
   if (opts.newScheduledFor) patch.scheduledFor = opts.newScheduledFor;
   if (opts.newDueDate) patch.dueDate = opts.newDueDate;
   await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }
 
 export async function rescheduleTask(
@@ -116,20 +127,27 @@ export async function rescheduleTask(
   };
   if (newDueDate) patch.dueDate = newDueDate;
   await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }
 
 export async function markInProgress(id: string): Promise<void> {
-  await getDb().tasks.update(id, { status: 'IN_PROGRESS', updatedAt: new Date() });
+  const patch = { status: 'IN_PROGRESS' as TaskStatus, updatedAt: new Date() };
+  await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }
 
 export async function dismissTask(id: string): Promise<void> {
-  await getDb().tasks.update(id, { status: 'DISMISSED', updatedAt: new Date() });
+  const patch = { status: 'DISMISSED' as TaskStatus, updatedAt: new Date() };
+  await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }
 
 export async function reopenTask(id: string): Promise<void> {
-  await getDb().tasks.update(id, {
-    status: 'PENDING',
+  const patch = {
+    status: 'PENDING' as TaskStatus,
     postponeReason: undefined,
     updatedAt: new Date(),
-  });
+  };
+  await getDb().tasks.update(id, patch);
+  await logUpdate(id, patch);
 }

@@ -1,6 +1,7 @@
 import { getDb, type FincasDB } from '../db';
 import type { Parcel, ParcelStatus, ParcelStatusHistory } from '../types';
 import { newId } from './ids';
+import { recordDelete, recordPut } from '@/lib/sync/log';
 
 export type ParcelInput = Omit<Parcel, 'id' | 'createdAt' | 'updatedAt' | 'statusChangedAt'> & {
   statusChangedAt?: Date;
@@ -51,9 +52,10 @@ export async function createParcel(input: ParcelInput): Promise<Parcel> {
     ...input,
   };
   const db = getDb();
+  let history: ParcelStatusHistory | undefined;
   await db.transaction('rw', [db.parcels, db.parcelStatusHistory], async () => {
     await db.parcels.add(parcel);
-    const history: ParcelStatusHistory = {
+    history = {
       id: newId(),
       parcelId: parcel.id,
       toStatus: parcel.status,
@@ -63,11 +65,21 @@ export async function createParcel(input: ParcelInput): Promise<Parcel> {
     };
     await db.parcelStatusHistory.add(history);
   });
+  await recordPut({ table: 'parcels', recordId: parcel.id, patch: parcel });
+  if (history) {
+    await recordPut({
+      table: 'parcelStatusHistory',
+      recordId: history.id,
+      patch: history,
+    });
+  }
   return parcel;
 }
 
 export async function updateParcel(id: string, patch: ParcelPatch): Promise<void> {
-  await getDb().parcels.update(id, { ...patch, updatedAt: new Date() });
+  const final = { ...patch, updatedAt: new Date() };
+  await getDb().parcels.update(id, final);
+  await recordPut({ table: 'parcels', recordId: id, patch: final });
 }
 
 export async function changeParcelStatus(
@@ -166,4 +178,10 @@ export async function deleteParcel(id: string): Promise<void> {
   await db.transaction('rw', parcelCascadeTables(db), async () => {
     await cascadeDeleteParcels(db, [id]);
   });
+  // Por simplicidad: la op de DELETE de la parcela basta para que el peer
+  // borre la fila. La cascada local de tareas/análisis/etc. se replicará
+  // como ops independientes en una iteración posterior; mientras tanto
+  // si el peer recibe el DELETE de la parcela y la suya tiene tareas
+  // huérfanas, el listado las oculta porque el join falla.
+  await recordDelete({ table: 'parcels', recordId: id });
 }

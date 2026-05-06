@@ -2,6 +2,7 @@ import { getDb } from '../db';
 import type { Farm } from '../types';
 import { newId, nowStamps } from './ids';
 import { cascadeDeleteParcels, parcelCascadeTables } from './parcels';
+import { recordDelete, recordPut } from '@/lib/sync/log';
 
 export type FarmInput = Omit<Farm, 'id' | 'createdAt' | 'updatedAt'>;
 export type FarmPatch = Partial<FarmInput>;
@@ -17,11 +18,14 @@ export async function getFarm(id: string): Promise<Farm | undefined> {
 export async function createFarm(input: FarmInput): Promise<Farm> {
   const farm: Farm = { id: newId(), ...nowStamps(), ...input };
   await getDb().farms.add(farm);
+  await recordPut({ table: 'farms', recordId: farm.id, patch: farm });
   return farm;
 }
 
 export async function updateFarm(id: string, patch: FarmPatch): Promise<void> {
-  await getDb().farms.update(id, { ...patch, updatedAt: new Date() });
+  const final = { ...patch, updatedAt: new Date() };
+  await getDb().farms.update(id, final);
+  await recordPut({ table: 'farms', recordId: id, patch: final });
 }
 
 export async function deleteFarm(id: string): Promise<void> {
@@ -33,4 +37,6 @@ export async function deleteFarm(id: string): Promise<void> {
     await db.biodiversityFeatures.where('farmId').equals(id).delete();
     await db.farms.delete(id);
   });
+  // Las cascadas también dejan sus propias ops; aquí registramos la del farm.
+  await recordDelete({ table: 'farms', recordId: id });
 }
