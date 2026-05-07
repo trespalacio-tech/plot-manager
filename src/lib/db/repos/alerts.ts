@@ -1,6 +1,7 @@
 import { getDb } from '../db';
 import type { Alert, AlertSeverity } from '../types';
 import { newId, nowStamps } from './ids';
+import { recordDelete, recordPut } from '@/lib/sync/log';
 
 export type AlertInput = Omit<Alert, 'id' | 'createdAt' | 'updatedAt' | 'acknowledgedAt'>;
 
@@ -48,14 +49,18 @@ function severityOrder(s: AlertSeverity): number {
 export async function createAlert(input: AlertInput): Promise<Alert> {
   const alert: Alert = { id: newId(), ...nowStamps(), ...input };
   await getDb().alerts.add(alert);
+  await recordPut({ table: 'alerts', recordId: alert.id, patch: alert });
   return alert;
 }
 
 export async function acknowledgeAlert(id: string): Promise<void> {
   const now = new Date();
-  await getDb().alerts.update(id, { acknowledgedAt: now, updatedAt: now });
+  const patch = { acknowledgedAt: now, updatedAt: now };
+  await getDb().alerts.update(id, patch);
+  await recordPut({ table: 'alerts', recordId: id, patch });
 }
 
 export async function deleteAlert(id: string): Promise<void> {
   await getDb().alerts.delete(id);
+  await recordDelete({ table: 'alerts', recordId: id });
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { evaluateCoach } from '@/lib/playbooks';
 import { runCoachMigrations } from './migrations';
+import { runOpLogBackfill } from '@/lib/sync/backfill';
 
 const LAST_EVAL_KEY = 'coach:lastEvalAt';
 const THROTTLE_MS = 30 * 60 * 1000;
@@ -51,6 +52,10 @@ export function useAutoCoach(): AutoCoachState {
     let cancelled = false;
     setState({ evaluating: true });
     void runCoachMigrations()
+      // Backfill one-shot del op-log: si la BD existe desde antes del
+      // sync P2P, generamos una Op PUT inicial por fila para que un peer
+      // recién pareado pueda recibir todo el estado anterior.
+      .then(() => runOpLogBackfill())
       .then(() => evaluateCoach())
       .then(() => {
         if (cancelled) return;
