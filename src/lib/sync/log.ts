@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db/db';
 import { ensureIdentity, reserveNextSeq } from './identity';
+import { liveSync } from './live';
 import {
   applyDelete,
   applyPut,
@@ -48,9 +49,9 @@ export async function recordPut(opts: RecordPutOptions): Promise<Op> {
   const db = getDb();
   await ensureIdentity();
   const ts = Date.now();
-  return db.transaction('rw', [db.ops, db.identity], async () => {
+  const op = await db.transaction('rw', [db.ops, db.identity], async () => {
     const { deviceId, seq } = await reserveNextSeq();
-    const op: Op = {
+    const created: Op = {
       id: `${deviceId}:${seq}`,
       deviceId,
       seq,
@@ -60,18 +61,22 @@ export async function recordPut(opts: RecordPutOptions): Promise<Op> {
       kind: 'PUT',
       fields: buildPutFields(opts.patch as Record<string, unknown>, ts),
     };
-    await db.ops.add(op);
-    return op;
+    await db.ops.add(created);
+    return created;
   });
+  // Live sync: difunde la op a peers conectados en este instante.
+  // No-op si no hay nadie conectado; nunca falla la mutación local.
+  liveSync.broadcast(op);
+  return op;
 }
 
 export async function recordDelete(opts: RecordDeleteOptions): Promise<Op> {
   const db = getDb();
   await ensureIdentity();
   const ts = Date.now();
-  return db.transaction('rw', [db.ops, db.identity], async () => {
+  const op = await db.transaction('rw', [db.ops, db.identity], async () => {
     const { deviceId, seq } = await reserveNextSeq();
-    const op: Op = {
+    const created: Op = {
       id: `${deviceId}:${seq}`,
       deviceId,
       seq,
@@ -80,9 +85,11 @@ export async function recordDelete(opts: RecordDeleteOptions): Promise<Op> {
       recordId: opts.recordId,
       kind: 'DELETE',
     };
-    await db.ops.add(op);
-    return op;
+    await db.ops.add(created);
+    return created;
   });
+  liveSync.broadcast(op);
+  return op;
 }
 
 /**

@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useConfirm } from '@/components/ui/confirm';
 import { getDb } from '@/lib/db/db';
 import { ensureIdentity } from '@/lib/sync/identity';
+import { liveSync } from '@/lib/sync/live';
 import { opsCount } from '@/lib/sync/log';
 import type { PeerRecord } from '@/lib/sync/types';
+import { useLivePeers } from '@/lib/sync/useLiveSync';
 import { PairingDialog } from './PairingDialog';
 
 type PairingTarget =
@@ -24,6 +26,7 @@ export function DevicesCard(): JSX.Element {
   const peers = useLiveQuery(() => getDb().peers.toArray(), []) as
     | PeerRecord[]
     | undefined;
+  const livePeerIds = new Set(useLivePeers());
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +58,7 @@ export function DevicesCard(): JSX.Element {
       destructive: true,
     });
     if (!ok) return;
+    liveSync.disconnect(peer.id);
     await getDb().peers.delete(peer.id);
   };
 
@@ -77,10 +81,10 @@ export function DevicesCard(): JSX.Element {
             QR. No hay servidor, no hay cuentas.
           </p>
           <p className="rounded-md border border-stone-200 bg-bone-100 px-3 py-2 text-[11px] leading-snug text-stone-600">
-            ⓘ <strong>Cada sincronización requiere escanear QR.</strong> WebRTC sin
-            servidor no permite conexiones permanentes: tras vincular un dispositivo,
-            cuando quieras volver a sincronizar pulsa <strong>Sincronizar</strong> en
-            uno y <strong>Aceptar QR</strong> en el otro.
+            ⓘ <strong>Sync en directo</strong> mientras ambas pestañas estén abiertas:
+            tras pairing por QR, los cambios se propagan al instante. Si cierras una
+            pestaña y vuelves a abrirla, repite QR para reconectar (WebRTC no persiste
+            conexiones entre cargas de página).
           </p>
           {deviceId && (
             <p className="text-xs text-stone-500">
@@ -96,45 +100,77 @@ export function DevicesCard(): JSX.Element {
             </p>
           ) : (
             <ul className="grid gap-1.5">
-              {peers.map((p) => (
-                <li
-                  key={p.id}
-                  className="grid gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <div className="font-medium text-stone-900">
-                      {p.name ?? <code className="font-mono">{p.id}</code>}
+              {peers.map((p) => {
+                const isLive = livePeerIds.has(p.id);
+                return (
+                  <li
+                    key={p.id}
+                    className="grid gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-stone-900">
+                          {p.name ?? <code className="font-mono">{p.id}</code>}
+                        </span>
+                        {isLive && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-800">
+                            <span
+                              aria-hidden
+                              className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand-600"
+                            />
+                            En vivo
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-stone-500">
+                        {isLive
+                          ? 'Cambios se sincronizan al instante mientras ambas pestañas estén abiertas.'
+                          : p.lastSyncAt
+                            ? `Última sync: ${formatRelativeTime(p.lastSyncAt)}`
+                            : 'Sin sincronizar todavía'}
+                      </div>
                     </div>
-                    <div className="text-xs text-stone-500">
-                      {p.lastSyncAt
-                        ? `Última sync: ${formatRelativeTime(p.lastSyncAt)}`
-                        : 'Sin sincronizar todavía'}
+                    <div className="flex flex-wrap gap-1.5">
+                      {isLive ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => liveSync.disconnect(p.id)}
+                        >
+                          Desconectar
+                        </Button>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              setTarget({ mode: 'resync-offerer', peer: p })
+                            }
+                          >
+                            Sincronizar (mostrar QR)
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setTarget({ mode: 'resync-answerer', peer: p })
+                            }
+                          >
+                            Aceptar QR
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void onForget(p)}
+                      >
+                        Olvidar
+                      </Button>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button
-                      size="sm"
-                      onClick={() => setTarget({ mode: 'resync-offerer', peer: p })}
-                    >
-                      Sincronizar (mostrar QR)
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setTarget({ mode: 'resync-answerer', peer: p })}
-                    >
-                      Aceptar QR
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => void onForget(p)}
-                    >
-                      Olvidar
-                    </Button>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
 

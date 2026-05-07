@@ -19,6 +19,7 @@ import {
   type SessionDescription,
 } from '@/lib/sync/transport/webrtc';
 import { runSyncSession, type SyncProgress, type SyncStats } from '@/lib/sync/engine';
+import { liveSync } from '@/lib/sync/live';
 import { QrFrameView } from './QrFrameView';
 import { QrScanView } from './QrScanView';
 
@@ -73,12 +74,24 @@ export function PairingDialog({
 
   const offererRef = useRef<OffererSession | null>(null);
   const answererRef = useRef<AnswererSession | null>(null);
+  // step actual visto sin cierre por React state (necesitamos leer el
+  // valor sincronicamente en el cleanup del useEffect).
+  const stepRef = useRef<Step>('preparing');
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
-  // Reset al abrir / cerrar
+  // Reset al abrir / cerrar.
+  // Importante: si el sync completó con éxito, NO cerramos las
+  // sesiones — el liveSync ya tomó posesión del DataChannel y necesita
+  // que el RTCPeerConnection siga abierto.
   useEffect(() => {
     if (!open) {
-      offererRef.current?.close();
-      answererRef.current?.close();
+      const handed = stepRef.current === 'done';
+      if (!handed) {
+        offererRef.current?.close();
+        answererRef.current?.close();
+      }
       offererRef.current = null;
       answererRef.current = null;
       setStep('preparing');
@@ -145,10 +158,13 @@ export function PairingDialog({
       };
       setAnswerFrames(encodeToFrames(answerPayload));
       setStep('show-answer');
-      // En paralelo, esperamos al canal y arrancamos el sync.
+      // En paralelo, esperamos al canal, arrancamos el sync y al
+      // terminar lo entregamos al liveSync para sync en directo.
+      let liveCh: RTCDataChannel | undefined;
       void session
         .channelReady()
         .then((ch) => {
+          liveCh = ch;
           setStep('syncing');
           return runSyncSession(ch, {
             expectedPeerId: expectedPeerId ?? payload.deviceId,
@@ -158,6 +174,9 @@ export function PairingDialog({
         .then((s) => {
           setStats(s);
           setStep('done');
+          if (liveCh && answererRef.current) {
+            liveSync.attach(s.peerDeviceId, liveCh, answererRef.current.peerConnection);
+          }
           toast.show({
             title: 'Sincronización completa',
             description: `${s.appliedOps} cambios aplicados desde el otro dispositivo`,
@@ -191,11 +210,14 @@ export function PairingDialog({
       const channel = await session.acceptAnswer(payload.sdp);
       setStep('syncing');
       const s = await runSyncSession(channel, {
-        expectedPeerId: payload.deviceId,
+        expectedPeerId: expectedPeerId ?? payload.deviceId,
         onProgress: setProgress,
       });
       setStats(s);
       setStep('done');
+      // Transferimos el canal y su PC al gestor live: queda abierto
+      // para propagar futuras ops sin necesidad de re-pairing por QR.
+      liveSync.attach(s.peerDeviceId, channel, session.peerConnection);
       toast.show({
         title: 'Sincronización completa',
         description: `${s.appliedOps} cambios aplicados desde el otro dispositivo`,

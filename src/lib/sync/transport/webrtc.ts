@@ -40,6 +40,11 @@ export interface OffererSession {
   acceptAnswer(answer: SessionDescription): Promise<RTCDataChannel>;
   /** Cierra la conexión sin esperar answer (cancelar). */
   close(): void;
+  /**
+   * RTCPeerConnection subyacente. Hay que mantener una referencia viva
+   * mientras se quiera usar el DataChannel; cerrar el PC cierra el canal.
+   */
+  peerConnection: RTCPeerConnection;
 }
 
 export interface AnswererSession {
@@ -48,6 +53,7 @@ export interface AnswererSession {
   /** Promesa que resuelve con el DataChannel cuando el iniciador lo abre. */
   channelReady(): Promise<RTCDataChannel>;
   close(): void;
+  peerConnection: RTCPeerConnection;
 }
 
 function waitForIceComplete(pc: RTCPeerConnection): Promise<void> {
@@ -97,6 +103,7 @@ export async function createOfferer(): Promise<OffererSession> {
   let acceptResolved = false;
 
   return {
+    peerConnection: pc,
     offer: { type: finalSdp.type, sdp: finalSdp.sdp },
     async acceptAnswer(answer) {
       if (acceptResolved) throw new Error('already-accepted');
@@ -164,6 +171,7 @@ export async function createAnswerer(
   if (!finalSdp || !finalSdp.sdp) throw new Error('no-local-description');
 
   return {
+    peerConnection: pc,
     answer: { type: finalSdp.type, sdp: finalSdp.sdp },
     channelReady: () => channelPromise,
     close() {
