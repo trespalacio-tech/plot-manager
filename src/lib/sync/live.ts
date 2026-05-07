@@ -14,10 +14,14 @@ import type { Op } from './types';
  *    siguiente vez que el usuario quiera sync, repetirá QR.
  */
 
-interface LiveMsg {
-  kind: 'LIVE_OP';
-  op: Op;
-}
+type LiveMsg =
+  | { kind: 'LIVE_OP'; op: Op }
+  | { kind: 'PING'; t: number }
+  | { kind: 'PONG'; t: number };
+
+const HEARTBEAT_MS = 15_000;
+/** Si pasa más de este tiempo sin pong tras un ping, la conexión es zombi. */
+const HEARTBEAT_TIMEOUT_MS = 30_000;
 
 type Listener = () => void;
 
@@ -28,6 +32,10 @@ interface ActiveLink {
    * para que no se garbage-colecte (cerrar el PC cierra el canal).
    */
   peerConnection: RTCPeerConnection;
+  /** Timer del heartbeat para limpiar al desconectar. */
+  heartbeatTimer?: ReturnType<typeof setInterval>;
+  /** Último pong recibido (epoch ms); la sesión nace en estado activo. */
+  lastPongAt: number;
 }
 
 class LiveSyncManager {
@@ -45,46 +53,41 @@ class LiveSyncManager {
     peerConnection: RTCPeerConnection,
   ): void {
     // Si ya hay un link previo para ese peer, lo cerramos: la sesión
-    // nueva manda.
+    // nueva manda. tearDown no notifica si limpiamos antes de re-set.
     const previous = this.links.get(peerDeviceId);
     if (previous && previous.channel !== channel) {
+      if (previous.heartbeatTimer) clearInterval(previous.heartbeatTimer);
       try {
         previous.channel.close();
         previous.peerConnection.close();
       } catch {
         /* noop */
       }
+      this.links.delete(peerDeviceId);
     }
-    this.links.set(peerDeviceId, { channel, peerConnection });
+    const link: ActiveLink = {
+      channel,
+      peerConnection,
+      lastPongAt: Date.now(),
+    };
+    // Heartbeat: enviamos PING regulares y vigilamos el último PONG
+    // para detectar conexiones zombi (canal "open" pero red caída
+    // sin que el navegador haya disparado onclose todavía).
+    link.heartbeatTimer = setInterval(() => {
+      this.heartbeat(peerDeviceId);
+    }, HEARTBEAT_MS);
+    this.links.set(peerDeviceId, link);
 
     channel.onmessage = (e) => {
       void this.handleIncoming(peerDeviceId, e.data);
     };
     channel.onclose = () => {
-      // Solo desregistrar si seguimos siendo el canal "actual".
       const current = this.links.get(peerDeviceId);
-      if (current && current.channel === channel) {
-        try {
-          current.peerConnection.close();
-        } catch {
-          /* noop */
-        }
-        this.links.delete(peerDeviceId);
-        this.notify();
-      }
+      if (current && current.channel === channel) this.tearDown(peerDeviceId);
     };
     channel.onerror = () => {
       const current = this.links.get(peerDeviceId);
-      if (current && current.channel === channel) {
-        try {
-          channel.close();
-          current.peerConnection.close();
-        } catch {
-          /* noop */
-        }
-        this.links.delete(peerDeviceId);
-        this.notify();
-      }
+      if (current && current.channel === channel) this.tearDown(peerDeviceId);
     };
     this.notify();
   }
@@ -134,30 +137,14 @@ class LiveSyncManager {
    * "Olvidar" o quiere repairear).
    */
   disconnect(peerDeviceId: string): void {
-    const link = this.links.get(peerDeviceId);
-    if (!link) return;
-    try {
-      link.channel.close();
-      link.peerConnection.close();
-    } catch {
-      /* noop */
-    }
-    this.links.delete(peerDeviceId);
-    this.notify();
+    this.tearDown(peerDeviceId);
   }
 
   /** Cierra todos los canales (al cerrar la pestaña, por ejemplo). */
   disconnectAll(): void {
-    for (const [, link] of this.links) {
-      try {
-        link.channel.close();
-        link.peerConnection.close();
-      } catch {
-        /* noop */
-      }
+    for (const peerDeviceId of [...this.links.keys()]) {
+      this.tearDown(peerDeviceId);
     }
-    this.links.clear();
-    this.notify();
   }
 
   /** Suscripción para que la UI reaccione al estado live. */
@@ -176,15 +163,67 @@ class LiveSyncManager {
     }
   }
 
-  private async handleIncoming(_peerDeviceId: string, data: unknown): Promise<void> {
+  private async handleIncoming(peerDeviceId: string, data: unknown): Promise<void> {
     try {
       const msg = JSON.parse(String(data)) as LiveMsg;
+      if (msg.kind === 'PING') {
+        // Respondemos con pong sobre el mismo canal.
+        const link = this.links.get(peerDeviceId);
+        if (link && link.channel.readyState === 'open') {
+          try {
+            link.channel.send(JSON.stringify({ kind: 'PONG', t: msg.t }));
+          } catch {
+            /* ignore */
+          }
+        }
+        return;
+      }
+      if (msg.kind === 'PONG') {
+        const link = this.links.get(peerDeviceId);
+        if (link) link.lastPongAt = Date.now();
+        return;
+      }
       if (msg.kind !== 'LIVE_OP') return;
       if (await isOpKnown(msg.op.id)) return;
       await applyRemoteOp(msg.op);
     } catch {
       // mensaje corrupto: ignoramos para no tirar el canal por un parse
     }
+  }
+
+  private heartbeat(peerDeviceId: string): void {
+    const link = this.links.get(peerDeviceId);
+    if (!link) return;
+    // Si el canal ya no está abierto, limpiamos.
+    if (link.channel.readyState !== 'open') {
+      this.tearDown(peerDeviceId);
+      return;
+    }
+    // Conexión zombi: canal sigue 'open' pero no hay pong reciente.
+    // Sucede tras suspender el dispositivo o caída de red breve.
+    if (Date.now() - link.lastPongAt > HEARTBEAT_TIMEOUT_MS) {
+      this.tearDown(peerDeviceId);
+      return;
+    }
+    try {
+      link.channel.send(JSON.stringify({ kind: 'PING', t: Date.now() }));
+    } catch {
+      this.tearDown(peerDeviceId);
+    }
+  }
+
+  private tearDown(peerDeviceId: string): void {
+    const link = this.links.get(peerDeviceId);
+    if (!link) return;
+    if (link.heartbeatTimer) clearInterval(link.heartbeatTimer);
+    try {
+      link.channel.close();
+      link.peerConnection.close();
+    } catch {
+      /* noop */
+    }
+    this.links.delete(peerDeviceId);
+    this.notify();
   }
 }
 

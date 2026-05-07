@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { installAutoBackupOnClose } from '@/lib/backup';
 import { useTaskNotifications } from '@/lib/coach/useTaskNotifications';
+import { useLivePeers } from '@/lib/sync/useLiveSync';
+import { useLiveSyncToasts } from '@/lib/sync/useLiveSyncToasts';
 import { ConfirmProvider } from '@/components/ui/confirm';
 import { ToastProvider } from '@/components/ui/toast';
 import {
@@ -59,6 +61,10 @@ export function AppShell(): JSX.Element {
 }
 
 function AppShellInner(): JSX.Element {
+  // Vigila conexiones live para disparar toasts y revalidar al volver
+  // de background. Vive aquí para tener acceso al ToastProvider.
+  useLiveSyncToasts();
+  const livePeers = useLivePeers();
   return (
     <div className="flex min-h-full flex-col md:flex-row">
       <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-stone-200 md:bg-bone-100">
@@ -77,6 +83,18 @@ function AppShellInner(): JSX.Element {
               Regenerativa
             </div>
           </div>
+          {livePeers.length > 0 && (
+            <span
+              title={`${livePeers.length} dispositivo${livePeers.length === 1 ? '' : 's'} en directo`}
+              className="ml-auto inline-flex items-center gap-1 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-brand-800"
+            >
+              <span
+                aria-hidden
+                className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand-600"
+              />
+              {livePeers.length}
+            </span>
+          )}
         </div>
         <nav className="flex flex-1 flex-col gap-0.5 px-3 pb-4">
           {tabs.map(({ to, label, Icon }) => (
