@@ -16,12 +16,24 @@
     line-height: 1.55;
   }
 
+  /* Modo oscuro: misma calidez, profundidad invertida. Stone-900
+     en lugar de negro puro mantiene el carácter "papel quemado" */
+  html.dark body {
+    @apply bg-stone-900 text-stone-100;
+  }
+
   h1,
   h2,
   h3,
   h4 {
     @apply text-stone-900;
     letter-spacing: -0.01em;
+  }
+  html.dark h1,
+  html.dark h2,
+  html.dark h3,
+  html.dark h4 {
+    @apply text-stone-50;
   }
 
   /* Subraya nativo más suave en enlaces inline. */
@@ -35,6 +47,9 @@
     scrollbar-width: thin;
     scrollbar-color: theme('colors.stone.300') transparent;
   }
+  html.dark * {
+    scrollbar-color: theme('colors.stone.700') transparent;
+  }
   *::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -43,8 +58,14 @@
     background-color: theme('colors.stone.300');
     border-radius: 999px;
   }
+  html.dark *::-webkit-scrollbar-thumb {
+    background-color: theme('colors.stone.700');
+  }
   *::-webkit-scrollbar-thumb:hover {
     background-color: theme('colors.stone.400');
+  }
+  html.dark *::-webkit-scrollbar-thumb:hover {
+    background-color: theme('colors.stone.600');
   }
   *::-webkit-scrollbar-track {
     background: transparent;

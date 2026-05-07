@@ -1,6 +1,10 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Modo class: aplicamos `dark` al <html> al inicio según preferencia
+  // del sistema (o el override del usuario en Ajustes). Permite tanto
+  // automático como manual sin recargar.
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {

@@ -7,6 +7,7 @@ import { APP_VERSION } from '@/lib/version';
 import { NotificationsSettingsCard } from '@/components/coach/NotificationsSettingsCard';
 import { InstallCard } from '@/components/pwa/InstallCard';
 import { DevicesCard } from '@/components/sync/DevicesCard';
+import { ThemeCard } from '@/components/theme/ThemeCard';
 import { useConfirm } from '@/components/ui/confirm';
 import {
   AUTO_BACKUP_LIMIT,
@@ -147,6 +148,8 @@ export function SettingsPage(): JSX.Element {
     >
       <div className="grid gap-4">
         <InstallCard />
+
+        <ThemeCard />
 
         <NotificationsSettingsCard />
 

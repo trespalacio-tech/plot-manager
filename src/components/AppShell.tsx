@@ -67,7 +67,7 @@ function AppShellInner(): JSX.Element {
   const livePeers = useLivePeers();
   return (
     <div className="flex min-h-full flex-col md:flex-row">
-      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-stone-200 md:bg-bone-100">
+      <aside className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-stone-200 md:bg-bone-100 md:dark:border-stone-700 md:dark:bg-stone-800">
         <div className="flex items-center gap-2 px-5 py-6">
           <span
             aria-hidden
@@ -105,8 +105,8 @@ function AppShellInner(): JSX.Element {
                 [
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
                   isActive
-                    ? 'bg-brand-600 text-bone-50 shadow-soft'
-                    : 'text-stone-700 hover:bg-bone-200/60 hover:text-stone-900',
+                    ? 'bg-brand-600 text-bone-50 shadow-soft dark:bg-brand-500 dark:text-stone-900'
+                    : 'text-stone-700 hover:bg-bone-200/60 hover:text-stone-900 dark:text-stone-300 dark:hover:bg-stone-700 dark:hover:text-stone-100',
                 ].join(' ')
               }
             >
@@ -115,7 +115,7 @@ function AppShellInner(): JSX.Element {
             </NavLink>
           ))}
         </nav>
-        <div className="px-5 pb-5 text-[11px] leading-snug text-stone-500">
+        <div className="px-5 pb-5 text-[11px] leading-snug text-stone-500 dark:text-stone-400">
           Local-first · tus datos viven en este dispositivo.
         </div>
       </aside>
@@ -138,7 +138,7 @@ function MobileBottomNav(): JSX.Element {
     <>
       <nav
         aria-label="Navegación principal"
-        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-stone-200 bg-bone-50/95 backdrop-blur md:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-stone-200 bg-bone-50/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95 md:hidden"
       >
         {PRIMARY_TABS.map(({ to, label, Icon }) => (
           <NavLink
@@ -147,7 +147,9 @@ function MobileBottomNav(): JSX.Element {
             className={({ isActive }) =>
               [
                 'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] transition-colors',
-                isActive ? 'text-brand-700' : 'text-stone-500 hover:text-stone-700',
+                isActive
+                  ? 'text-brand-700 dark:text-brand-300'
+                  : 'text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200',
               ].join(' ')
             }
           >
@@ -156,7 +158,7 @@ function MobileBottomNav(): JSX.Element {
                 {isActive && (
                   <span
                     aria-hidden
-                    className="absolute inset-x-4 top-0 h-0.5 rounded-b bg-brand-600"
+                    className="absolute inset-x-4 top-0 h-0.5 rounded-b bg-brand-600 dark:bg-brand-400"
                   />
                 )}
                 <Icon className="h-[18px] w-[18px]" aria-hidden />
@@ -170,14 +172,16 @@ function MobileBottomNav(): JSX.Element {
           onClick={() => setMoreOpen(true)}
           className={[
             'relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[11px] transition-colors',
-            isInSecondary ? 'text-brand-700' : 'text-stone-500 hover:text-stone-700',
+            isInSecondary
+              ? 'text-brand-700 dark:text-brand-300'
+              : 'text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200',
           ].join(' ')}
           aria-label="Más opciones"
         >
           {isInSecondary && (
             <span
               aria-hidden
-              className="absolute inset-x-4 top-0 h-0.5 rounded-b bg-brand-600"
+              className="absolute inset-x-4 top-0 h-0.5 rounded-b bg-brand-600 dark:bg-brand-400"
             />
           )}
           <MoreHorizontal className="h-[18px] w-[18px]" aria-hidden />

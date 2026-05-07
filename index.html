@@ -4,12 +4,35 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#2f6b3a" />
+    <!-- theme-color por esquema: barra del navegador en armonía con la paleta -->
+    <meta name="theme-color" content="#2f6b3a" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16361c" media="(prefers-color-scheme: dark)" />
     <meta
       name="description"
       content="App local-first para gestión regenerativa de frutales y viñedo. Sin servidor, sin cuentas, sin internet obligatorio."
     />
     <title>Fincas — Gestión regenerativa</title>
+    <script>
+      /*
+       * Anti-flash de tema oscuro: aplicamos la clase `dark` antes del
+       * primer paint si el usuario eligió "dark" o si está en "auto" y
+       * el sistema lo prefiere. Mantén sincronizado con
+       * src/lib/theme/theme.ts.
+       */
+      (function () {
+        try {
+          var raw = localStorage.getItem('fincas:theme');
+          var mode = raw === 'light' || raw === 'dark' || raw === 'auto' ? raw : 'auto';
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var dark = mode === 'dark' || (mode === 'auto' && prefersDark);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (_) {
+          /* ignore */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
