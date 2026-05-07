@@ -233,8 +233,8 @@ describe('Convergencia real entre dos peers', () => {
     await applyOpDirect(B.db, updB);
     await exchangeOps(A, B, [delA, updB]);
 
-    const tA = await A.db.tasks.get('T1');
-    const tB = await B.db.tasks.get('T1');
+    const tA = (await A.db.tasks.get('T1')) as any;
+    const tB = (await B.db.tasks.get('T1')) as any;
     expect(tA?._deletedAt).toBeUndefined();
     expect(tB?._deletedAt).toBeUndefined();
     expect(tA?.title).toBe('X-actualizado');

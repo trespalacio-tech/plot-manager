@@ -27,6 +27,15 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Iniciador o receptor del pairing. */
   role: 'offerer' | 'answerer';
+  /**
+   * Si se pasa, sólo se completa la sincronización si el peer remoto
+   * tiene este deviceId. Útil al re-sincronizar con un peer ya
+   * vinculado: si por error escaneas el QR de otro dispositivo, falla
+   * antes de mezclar datos.
+   */
+  expectedPeerId?: string;
+  /** Etiqueta del peer esperado, para mostrar en la UI. */
+  expectedPeerLabel?: string;
 }
 
 type Step =
@@ -47,7 +56,13 @@ interface PairingPayload {
   sdp: SessionDescription;
 }
 
-export function PairingDialog({ open, onOpenChange, role }: Props): JSX.Element {
+export function PairingDialog({
+  open,
+  onOpenChange,
+  role,
+  expectedPeerId,
+  expectedPeerLabel,
+}: Props): JSX.Element {
   const toast = useToast();
   const [step, setStep] = useState<Step>('preparing');
   const [errorMsg, setErrorMsg] = useState<string | undefined>(undefined);
@@ -114,6 +129,11 @@ export function PairingDialog({ open, onOpenChange, role }: Props): JSX.Element 
       if (!payload || payload.v !== 1 || !payload.sdp) {
         throw new Error('payload-invalido');
       }
+      if (expectedPeerId && payload.deviceId !== expectedPeerId) {
+        throw new Error(
+          `Este QR es de otro dispositivo (${payload.deviceId}). Esperaba ${expectedPeerLabel ?? expectedPeerId}.`,
+        );
+      }
       const ident = await ensureIdentity();
       const session = await createAnswerer(payload.sdp);
       answererRef.current = session;
@@ -131,7 +151,7 @@ export function PairingDialog({ open, onOpenChange, role }: Props): JSX.Element 
         .then((ch) => {
           setStep('syncing');
           return runSyncSession(ch, {
-            expectedPeerId: payload.deviceId,
+            expectedPeerId: expectedPeerId ?? payload.deviceId,
             onProgress: setProgress,
           });
         })
@@ -160,6 +180,11 @@ export function PairingDialog({ open, onOpenChange, role }: Props): JSX.Element 
       if (!payload || payload.v !== 1 || !payload.sdp) {
         throw new Error('payload-invalido');
       }
+      if (expectedPeerId && payload.deviceId !== expectedPeerId) {
+        throw new Error(
+          `Este QR es de otro dispositivo (${payload.deviceId}). Esperaba ${expectedPeerLabel ?? expectedPeerId}.`,
+        );
+      }
       const session = offererRef.current;
       if (!session) throw new Error('no-offerer-session');
       setStep('connecting');
@@ -187,7 +212,11 @@ export function PairingDialog({ open, onOpenChange, role }: Props): JSX.Element 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {role === 'offerer' ? 'Vincular nuevo dispositivo' : 'Conectar con dispositivo'}
+            {expectedPeerId
+              ? `Sincronizar con ${expectedPeerLabel ?? expectedPeerId}`
+              : role === 'offerer'
+                ? 'Vincular nuevo dispositivo'
+                : 'Aceptar QR de otro dispositivo'}
           </DialogTitle>
           <DialogDescription>
             {step === 'preparing' && 'Preparando conexión sin servidor…'}

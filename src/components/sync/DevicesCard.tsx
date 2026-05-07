@@ -9,9 +9,15 @@ import { opsCount } from '@/lib/sync/log';
 import type { PeerRecord } from '@/lib/sync/types';
 import { PairingDialog } from './PairingDialog';
 
+type PairingTarget =
+  | { mode: 'new-offerer' }
+  | { mode: 'new-answerer' }
+  | { mode: 'resync-offerer'; peer: PeerRecord }
+  | { mode: 'resync-answerer'; peer: PeerRecord };
+
 export function DevicesCard(): JSX.Element {
   const confirm = useConfirm();
-  const [pairingRole, setPairingRole] = useState<'offerer' | 'answerer' | null>(null);
+  const [target, setTarget] = useState<PairingTarget | null>(null);
   const [deviceId, setDeviceId] = useState<string | undefined>(undefined);
   const [opsTotal, setOpsTotal] = useState<number | undefined>(undefined);
 
@@ -26,14 +32,14 @@ export function DevicesCard(): JSX.Element {
         if (!cancelled) setDeviceId(id.deviceId);
       })
       .catch(() => {
-        /* sin identidad legible: ignoramos en UI, el card sigue funcional */
+        /* ignoramos */
       });
     opsCount()
       .then((n) => {
         if (!cancelled) setOpsTotal(n);
       })
       .catch(() => {
-        /* idem */
+        /* ignoramos */
       });
     return () => {
       cancelled = true;
@@ -52,6 +58,12 @@ export function DevicesCard(): JSX.Element {
     await getDb().peers.delete(peer.id);
   };
 
+  const role = target?.mode.includes('offerer') ? 'offerer' : 'answerer';
+  const expectedPeer =
+    target?.mode === 'resync-offerer' || target?.mode === 'resync-answerer'
+      ? target.peer
+      : undefined;
+
   return (
     <>
       <Card>
@@ -64,6 +76,12 @@ export function DevicesCard(): JSX.Element {
             cifrados de extremo a extremo directamente por WebRTC tras escanear un
             QR. No hay servidor, no hay cuentas.
           </p>
+          <p className="rounded-md border border-stone-200 bg-bone-100 px-3 py-2 text-[11px] leading-snug text-stone-600">
+            ⓘ <strong>Cada sincronización requiere escanear QR.</strong> WebRTC sin
+            servidor no permite conexiones permanentes: tras vincular un dispositivo,
+            cuando quieras volver a sincronizar pulsa <strong>Sincronizar</strong> en
+            uno y <strong>Aceptar QR</strong> en el otro.
+          </p>
           {deviceId && (
             <p className="text-xs text-stone-500">
               Este dispositivo: <code className="font-mono">{deviceId}</code>
@@ -74,14 +92,14 @@ export function DevicesCard(): JSX.Element {
           {!peers || peers.length === 0 ? (
             <p className="rounded-md border border-stone-200 bg-bone-100 px-3 py-2 text-xs text-stone-600">
               Aún no has vinculado ningún dispositivo. Pulsa <strong>Vincular</strong>{' '}
-              en uno y <strong>Conectar</strong> en el otro para emparejarlos por QR.
+              en uno y <strong>Aceptar QR</strong> en el otro para emparejarlos por QR.
             </p>
           ) : (
             <ul className="grid gap-1.5">
               {peers.map((p) => (
                 <li
                   key={p.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-stone-200 bg-white px-3 py-2"
+                  className="grid gap-2 rounded-md border border-stone-200 bg-white px-3 py-2 sm:flex sm:flex-wrap sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
                     <div className="font-medium text-stone-900">
@@ -93,36 +111,61 @@ export function DevicesCard(): JSX.Element {
                         : 'Sin sincronizar todavía'}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => void onForget(p)}
-                  >
-                    Olvidar
-                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => setTarget({ mode: 'resync-offerer', peer: p })}
+                    >
+                      Sincronizar (mostrar QR)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setTarget({ mode: 'resync-answerer', peer: p })}
+                    >
+                      Aceptar QR
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void onForget(p)}
+                    >
+                      Olvidar
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setPairingRole('offerer')}>
-              Vincular nuevo dispositivo
-            </Button>
-            <Button variant="outline" onClick={() => setPairingRole('answerer')}>
-              Conectar con dispositivo
-            </Button>
+          <div className="border-t border-stone-200 pt-3">
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-stone-500">
+              Vincular un dispositivo nuevo
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => setTarget({ mode: 'new-offerer' })}>
+                Mostrar QR (este dispositivo)
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setTarget({ mode: 'new-answerer' })}
+              >
+                Aceptar QR (escanear otro)
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {pairingRole && (
+      {target && (
         <PairingDialog
-          open={pairingRole !== null}
+          open={target !== null}
           onOpenChange={(open) => {
-            if (!open) setPairingRole(null);
+            if (!open) setTarget(null);
           }}
-          role={pairingRole}
+          role={role}
+          expectedPeerId={expectedPeer?.id}
+          expectedPeerLabel={expectedPeer?.name ?? expectedPeer?.id}
         />
       )}
     </>
