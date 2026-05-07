@@ -80,10 +80,16 @@ export function applyPut<T extends RecordWithFieldVersions>(
 }
 
 /**
- * Aplica una op DELETE. Marca tombstone si el delete es más reciente
- * que cualquier edición de campo conocida. No elimina físicamente para
- * que un PUT posterior con ts mayor pueda "resucitar" el registro
- * (raro, pero correcto bajo LWW).
+ * Aplica una op DELETE.
+ *
+ * El DELETE compite no solo contra otros DELETE (vía _deletedAt) sino
+ * contra TODOS los timestamps por campo: si algún PUT más reciente ya
+ * editó la fila, el DELETE pierde y se ignora. Esto preserva la
+ * intuición LWW correcta: "lo último que pasó manda".
+ *
+ * No elimina físicamente la fila aunque gane: deja `_deletedAt` como
+ * tombstone para que un PUT posterior con ts mayor pueda resucitar el
+ * registro de forma determinista.
  */
 export function applyDelete<T extends RecordWithFieldVersions>(
   current: T | undefined,
@@ -101,7 +107,14 @@ export function applyDelete<T extends RecordWithFieldVersions>(
   }
   const existing = current as RecordWithFieldVersions;
   const prevDeletedAt = existing._deletedAt ?? 0;
-  if (prevDeletedAt >= op.ts) {
+  // Comparamos contra el ts más reciente conocido de la fila: tombstone
+  // previo y todos los _fv. Si el DELETE no es estrictamente posterior,
+  // pierde.
+  let mostRecentTs = prevDeletedAt;
+  for (const fieldTs of Object.values(existing._fv ?? {})) {
+    if (fieldTs > mostRecentTs) mostRecentTs = fieldTs;
+  }
+  if (mostRecentTs >= op.ts) {
     return { record: current, changed: false };
   }
   const next: RecordWithFieldVersions = { ...existing, _deletedAt: op.ts };
